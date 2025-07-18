@@ -27,13 +27,36 @@ export default function Dashboard() {
               </div>
             </div>
             <nav className="hidden md:flex space-x-8">
-              <a href="#dashboard" className="text-primary font-medium border-b-2 border-primary pb-2">Dashboard</a>
-              <a href="#prediction" className="text-gray-500 hover:text-gray-700 transition-colors">Prediction</a>
-              <a href="#analytics" className="text-gray-500 hover:text-gray-700 transition-colors">Analytics</a>
-              <a href="#data" className="text-gray-500 hover:text-gray-700 transition-colors">Data Management</a>
+              <button 
+                onClick={() => document.getElementById('stats-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-primary font-medium border-b-2 border-primary pb-2"
+              >
+                Dashboard
+              </button>
+              <button 
+                onClick={() => document.getElementById('prediction-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Prediction
+              </button>
+              <button 
+                onClick={() => document.getElementById('analytics-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Analytics
+              </button>
+              <button 
+                onClick={() => document.getElementById('data-upload-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Data Management
+              </button>
             </nav>
             <div className="flex items-center space-x-4">
-              <Button className="bg-primary text-white hover:bg-blue-700">
+              <Button 
+                onClick={() => document.getElementById('data-upload-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="bg-primary text-white hover:bg-blue-700"
+              >
                 <Upload className="w-4 h-4 mr-2" />
                 Upload Data
               </Button>
@@ -55,16 +78,20 @@ export default function Dashboard() {
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-6">
             {/* Stats Cards */}
-            <StatsCards />
+            <div id="stats-section">
+              <StatsCards />
+            </div>
 
             {/* Prediction Form */}
-            <PredictionForm />
+            <div id="prediction-section">
+              <PredictionForm />
+            </div>
 
             {/* Prediction Results */}
             <PredictionResults />
 
             {/* Data Visualization */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div id="analytics-section" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg font-inter font-semibold text-gray-900">
@@ -93,10 +120,12 @@ export default function Dashboard() {
             </div>
 
             {/* Data Upload Section */}
-            <DataUpload />
+            <div id="data-upload-section">
+              <DataUpload />
+            </div>
 
             {/* Model Performance */}
-            <Card>
+            <Card id="model-metrics-section">
               <CardHeader>
                 <CardTitle className="text-xl font-inter font-semibold text-gray-900">
                   Model Performance Metrics

@@ -4,15 +4,31 @@ import { BarChart3, Calculator, Database, Settings, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigationItems = [
-  { icon: Gauge, label: "Dashboard", href: "#", active: true },
-  { icon: Calculator, label: "Salary Prediction", href: "#prediction" },
-  { icon: BarChart3, label: "Analytics", href: "#analytics" },
-  { icon: Database, label: "Data Upload", href: "#data" },
-  { icon: Settings, label: "Model Settings", href: "#settings" },
+  { icon: Gauge, label: "Dashboard", href: "#", targetId: "stats-section" },
+  { icon: Calculator, label: "Salary Prediction", href: "#prediction", targetId: "prediction-section" },
+  { icon: BarChart3, label: "Analytics", href: "#analytics", targetId: "analytics-section" },
+  { icon: Database, label: "Data Upload", href: "#data", targetId: "data-upload-section" },
+  { icon: Settings, label: "Model Settings", href: "#settings", targetId: "model-metrics-section" },
 ];
 
 export default function Sidebar() {
   const [activeItem, setActiveItem] = useState("Dashboard");
+
+  const scrollToSection = (targetId: string, label: string) => {
+    const element = document.getElementById(targetId);
+    if (element) {
+      element.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start',
+        inline: 'nearest'
+      });
+      setActiveItem(label);
+    } else {
+      // Fallback: scroll to top if element not found
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setActiveItem(label);
+    }
+  };
 
   return (
     <Card className="sticky top-24">
@@ -22,15 +38,11 @@ export default function Sidebar() {
           {navigationItems.map((item) => {
             const Icon = item.icon;
             return (
-              <a
+              <button
                 key={item.label}
-                href={item.href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveItem(item.label);
-                }}
+                onClick={() => scrollToSection(item.targetId, item.label)}
                 className={cn(
-                  "flex items-center p-3 rounded-lg transition-colors",
+                  "w-full flex items-center p-3 rounded-lg transition-colors text-left",
                   activeItem === item.label
                     ? "bg-blue-50 text-primary font-medium"
                     : "text-gray-600 hover:bg-gray-50"
@@ -38,7 +50,7 @@ export default function Sidebar() {
               >
                 <Icon className="w-5 h-5 mr-3" />
                 {item.label}
-              </a>
+              </button>
             );
           })}
         </nav>
