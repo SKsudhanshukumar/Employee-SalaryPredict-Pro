@@ -45,10 +45,11 @@ The project is organized as a monorepo with three main directories:
 - **Logging**: Custom logging for API requests
 
 ### ML Service Layer
-- **Simulation Layer**: MLService class that simulates machine learning predictions
-- **Models**: Simulated Linear Regression and Random Forest algorithms
-- **Features**: Experience, department, location, education, and company size weighting
-- **Metrics**: R² score, MAE, and RMSE simulation for model comparison
+- **Real ML Training**: MLService class with authentic machine learning algorithms
+- **Models**: Linear Regression and Random Forest trained on 200,000+ real salary records
+- **Training Data**: 4 authentic employee datasets with 50,000 records each
+- **Features**: Age, experience, performance, certifications, education, department, location, employment type
+- **Metrics**: Real R² score, MAE, and RMSE calculated from actual model performance
 
 ## Data Flow
 
@@ -61,9 +62,10 @@ Three main entities managed through Drizzle ORM:
 ### Prediction Workflow
 1. User submits prediction form with job characteristics
 2. Backend validates input using Zod schemas
-3. MLService calculates predictions using simulated algorithms
-4. Results stored in database and returned to client
-5. Frontend displays predictions with confidence scores and feature importance
+3. MLService makes predictions using trained Linear Regression and Random Forest models
+4. Real feature vectors encoded from input (27 features including one-hot encoded categories)
+5. Results stored in database and returned to client
+6. Frontend displays predictions with confidence scores and real feature importance
 
 ### Data Upload Process
 1. User uploads CSV file through drag-and-drop interface

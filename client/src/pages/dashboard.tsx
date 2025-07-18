@@ -9,6 +9,7 @@ import DataUpload from "@/components/data-upload";
 import DepartmentChart from "@/components/charts/department-chart";
 import ExperienceChart from "@/components/charts/experience-chart";
 import ModelComparisonChart from "@/components/charts/model-comparison-chart";
+import { MLStatusBanner } from "@/components/ml-status-banner";
 
 export default function Dashboard() {
   return (
@@ -77,6 +78,9 @@ export default function Dashboard() {
 
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-6">
+            {/* ML Status Banner */}
+            <MLStatusBanner />
+            
             {/* Stats Cards */}
             <div id="stats-section">
               <StatsCards />
