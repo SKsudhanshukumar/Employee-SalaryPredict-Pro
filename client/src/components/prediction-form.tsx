@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calculator } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { departmentOptions, locationOptions, educationOptions, companySizeOptions } from "@shared/schema";
+import { jobTitleOptions, departmentOptions, locationOptions, educationOptions, companySizeOptions } from "@shared/schema";
 
 interface PredictionFormData {
   jobTitle: string;
@@ -98,14 +98,18 @@ export default function PredictionForm() {
             <Label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 mb-2">
               Job Title
             </Label>
-            <Input
-              id="jobTitle"
-              type="text"
-              placeholder="e.g., Software Engineer"
-              value={formData.jobTitle}
-              onChange={(e) => handleInputChange('jobTitle', e.target.value)}
-              className="w-full"
-            />
+            <Select onValueChange={(value) => handleInputChange('jobTitle', value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select job title" />
+              </SelectTrigger>
+              <SelectContent>
+                {jobTitleOptions.map((title) => (
+                  <SelectItem key={title} value={title}>
+                    {title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

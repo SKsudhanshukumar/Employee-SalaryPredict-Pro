@@ -61,6 +61,39 @@ export type InsertPrediction = z.infer<typeof insertPredictionSchema>;
 export type DataUpload = typeof dataUploads.$inferSelect;
 export type InsertDataUpload = z.infer<typeof insertDataUploadSchema>;
 
+export const jobTitleOptions = [
+  'Software Engineer',
+  'Senior Software Engineer',
+  'Staff Software Engineer',
+  'Engineering Manager',
+  'Product Manager',
+  'Senior Product Manager',
+  'Data Scientist',
+  'Senior Data Scientist',
+  'DevOps Engineer',
+  'QA Engineer',
+  'UX Designer',
+  'UI Designer',
+  'Marketing Manager',
+  'Digital Marketing Specialist',
+  'Content Marketing Manager',
+  'Sales Representative',
+  'Account Manager',
+  'Sales Manager',
+  'Business Development Manager',
+  'HR Generalist',
+  'HR Manager',
+  'Recruiter',
+  'Financial Analyst',
+  'Accountant',
+  'Finance Manager',
+  'Operations Manager',
+  'Project Manager',
+  'Scrum Master',
+  'Customer Success Manager',
+  'Technical Writer'
+] as const;
+
 export const departmentOptions = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'] as const;
 export const locationOptions = ['New York', 'San Francisco', 'Los Angeles', 'Chicago', 'Remote'] as const;
 export const educationOptions = ["Bachelor's", "Master's", 'PhD', 'Associate', 'High School'] as const;
