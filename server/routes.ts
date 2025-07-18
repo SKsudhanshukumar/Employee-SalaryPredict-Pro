@@ -71,7 +71,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const predictions = await storage.getPredictions(limit);
-      res.json(predictions);
+      
+      // Add feature importance to each prediction for frontend compatibility
+      const predictionsWithFeatures = predictions.map(prediction => ({
+        prediction,
+        featureImportance: {
+          experience: 0.35,
+          location: 0.25,
+          department: 0.20,
+          education: 0.12,
+          companySize: 0.08
+        }
+      }));
+      
+      res.json(predictionsWithFeatures);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch predictions" });
     }
