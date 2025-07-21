@@ -41,7 +41,6 @@ export class MemStorage implements IStorage {
   private currentUploadId = 1;
 
   constructor() {
-    // Initialize with some sample data for demonstration
     this.seedData();
   }
 
@@ -90,6 +89,7 @@ export class MemStorage implements IStorage {
       ...employee,
       id: this.currentEmployeeId++,
       createdAt: new Date(),
+      actualSalary: employee.actualSalary ?? null,
     };
     this.employees.set(newEmployee.id, newEmployee);
     return newEmployee;

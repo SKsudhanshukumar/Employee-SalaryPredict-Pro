@@ -94,7 +94,7 @@ export const jobTitleOptions = [
   'Technical Writer'
 ] as const;
 
-export const departmentOptions = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'] as const;
-export const locationOptions = ['New York', 'San Francisco', 'Los Angeles', 'Chicago', 'Remote'] as const;
-export const educationOptions = ["Bachelor's", "Master's", 'PhD', 'Associate', 'High School'] as const;
+export const departmentOptions = ['IT', 'Marketing', 'Sales', 'HR', 'Finance', 'Operations', 'Data Science'] as const;
+export const locationOptions = ['Bangalore', 'Delhi', 'Mumbai', 'Chennai', 'Pune', 'Hyderabad', 'Remote'] as const;
+export const educationOptions = ['Bachelor', 'Master', 'PhD', 'High School'] as const;
 export const companySizeOptions = ['Startup (1-50)', 'Medium (51-500)', 'Large (501-5000)', 'Enterprise (5000+)'] as const;

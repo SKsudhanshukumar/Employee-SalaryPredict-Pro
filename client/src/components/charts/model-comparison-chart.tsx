@@ -17,6 +17,8 @@ interface ModelMetrics {
 export default function ModelComparisonChart() {
   const { data: metrics, isLoading } = useQuery<ModelMetrics>({
     queryKey: ["/api/model-metrics"],
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
+    refetchIntervalInBackground: true,
   });
 
   if (isLoading) {

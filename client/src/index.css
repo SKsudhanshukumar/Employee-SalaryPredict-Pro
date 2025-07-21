@@ -108,3 +108,23 @@
     background-color: hsl(var(--accent-cyan));
   }
 }
+
+/* Fix for Select dropdown z-index issues */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+[data-radix-select-content] {
+  z-index: 9999 !important;
+}
+
+/* Ensure select dropdowns appear above other content */
+.select-content {
+  z-index: 9999 !important;
+  position: relative;
+}
+
+/* Fix for potential overlay issues */
+[data-radix-portal] {
+  z-index: 9999 !important;
+}

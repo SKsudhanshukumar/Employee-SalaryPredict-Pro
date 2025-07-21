@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
@@ -6,21 +6,56 @@ import { MLService } from "./ml-service";
 import { insertPredictionSchema, insertDataUploadSchema, insertEmployeeSchema } from "@shared/schema";
 import { z } from "zod";
 
+// Extend Request interface to include file property for multer
+interface MulterRequest extends Request {
+  file?: Express.Multer.File;
+}
+
 // Configure multer for file uploads
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
+// Simple in-memory cache for API responses
+const cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+
+const getCachedResponse = (key: string) => {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < cached.ttl) {
+    return cached.data;
+  }
+  cache.delete(key);
+  return null;
+};
+
+const setCachedResponse = (key: string, data: any, ttlMs: number) => {
+  cache.set(key, { data, timestamp: Date.now(), ttl: ttlMs });
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
-  // Initialize ML models in the background
-  console.log('🚀 Starting ML model initialization...');
-  MLService.initializeModels().then(() => {
-    console.log('✅ ML models initialized successfully');
-  }).catch(error => {
-    console.error('❌ Failed to initialize ML models:', error);
-  });
+  // Initialize ML models in the background after server starts (non-blocking)
+  console.log('🚀 Server starting - ML models will initialize lazily');
+  
+  // Start background initialization after server is ready (longer delay for better startup performance)
+  setTimeout(() => {
+    console.log('🤖 Starting background ML model initialization...');
+    MLService.initializeModels()
+      .then(() => {
+        console.log('✅ Background ML models initialized successfully');
+        // Start advanced model training after basic models are ready (longer delay)
+        setTimeout(() => {
+          MLService.trainAdvancedModels().catch(error => {
+            console.error('Advanced model training failed:', error);
+          });
+        }, 10000); // Wait 10 seconds before advanced training
+      })
+      .catch(error => {
+        console.error('❌ Background ML model initialization failed:', error);
+        console.log('🔄 Models will initialize on first prediction request');
+      });
+  }, 10000); // Start after 10 seconds to allow server to fully start and serve initial requests
   
   // Employee routes
   app.get("/api/employees", async (req, res) => {
@@ -28,6 +63,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const employees = await storage.getEmployees();
       res.json(employees);
     } catch (error) {
+      console.error('Failed to fetch employees:', error);
       res.status(500).json({ message: "Failed to fetch employees" });
     }
   });
@@ -41,6 +77,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid employee data", errors: error.errors });
       } else {
+        console.error('Failed to create employee:', error);
         res.status(500).json({ message: "Failed to create employee" });
       }
     }
@@ -70,6 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid prediction data", errors: error.errors });
       } else {
+        console.error('Prediction error:', error);
         res.status(500).json({ message: "Failed to generate prediction" });
       }
     }
@@ -94,14 +132,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(predictionsWithFeatures);
     } catch (error) {
+      console.error('Failed to fetch predictions:', error);
       res.status(500).json({ message: "Failed to fetch predictions" });
     }
   });
   
-  // Analytics routes
+  // Analytics routes with caching
   app.get("/api/analytics/department-salaries", async (req, res) => {
     try {
+      const cacheKey = "department-salaries";
+      const cached = getCachedResponse(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const data = await storage.getAverageSalaryByDepartment();
+      setCachedResponse(cacheKey, data, 5 * 60 * 1000); // Cache for 5 minutes
       res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch department salary data" });
@@ -110,7 +156,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/analytics/experience-salaries", async (req, res) => {
     try {
+      const cacheKey = "experience-salaries";
+      const cached = getCachedResponse(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const data = await storage.getSalaryByExperienceRange();
+      setCachedResponse(cacheKey, data, 5 * 60 * 1000); // Cache for 5 minutes
       res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch experience salary data" });
@@ -119,16 +172,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/analytics/stats", async (req, res) => {
     try {
+      const cacheKey = "analytics-stats";
+      const cached = getCachedResponse(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const [totalEmployees, avgSalary] = await Promise.all([
         storage.getTotalEmployeeCount(),
         storage.getAverageSalary()
       ]);
       
-      res.json({
+      const stats = {
         totalEmployees,
         avgSalary: Math.round(avgSalary),
         modelAccuracy: 94.7 // From ML service
-      });
+      };
+
+      setCachedResponse(cacheKey, stats, 2 * 60 * 1000); // Cache for 2 minutes
+      res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch stats" });
     }
@@ -159,7 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Data upload routes
-  app.post("/api/upload-data", upload.single('file'), async (req, res) => {
+  app.post("/api/upload-data", upload.single('file'), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -167,7 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Parse CSV data (simplified - in production would use proper CSV parser)
       const csvContent = req.file.buffer.toString();
-      const lines = csvContent.split('\n').filter(line => line.trim());
+      const lines = csvContent.split('\n').filter((line: string) => line.trim());
       
       if (lines.length < 2) {
         return res.status(400).json({ message: "Invalid CSV format" });
@@ -185,10 +247,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Parse CSV lines into objects (simplified)
           const headers = lines[0].split(',');
-          const data = lines.slice(1).map(line => {
+          const data = lines.slice(1).map((line: string) => {
             const values = line.split(',');
             const record: any = {};
-            headers.forEach((header, index) => {
+            headers.forEach((header: string, index: number) => {
               record[header.trim()] = values[index]?.trim();
             });
             return record;
@@ -219,6 +281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await storage.updateDataUploadStatus(upload.id, 'failed');
           }
         } catch (error) {
+          console.error('Error processing uploaded data:', error);
           await storage.updateDataUploadStatus(upload.id, 'failed');
         }
       }, 3000);
@@ -229,6 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recordCount: upload.recordCount 
       });
     } catch (error) {
+      console.error('File upload error:', error);
       res.status(500).json({ message: "Failed to upload file" });
     }
   });
