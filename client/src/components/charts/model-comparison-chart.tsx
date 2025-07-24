@@ -41,8 +41,8 @@ export default function ModelComparisonChart() {
   const chartData = [
     {
       metric: 'Accuracy',
-      'Linear Regression': Math.round(metrics.linearRegression.r2Score * 100),
-      'Random Forest': Math.round(metrics.randomForest.r2Score * 100),
+      'Linear Regression': Math.round(metrics.linearRegression?.r2Score * 100),
+      'Random Forest': Math.round(metrics.randomForest?.r2Score * 100),
     },
     {
       metric: 'Speed',

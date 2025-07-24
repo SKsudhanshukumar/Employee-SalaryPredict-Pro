@@ -233,7 +233,7 @@ export default function EnhancedQuickActions({ activeSection, onNavigate }: Enha
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 font-mono">
-                  R² {metrics ? `${((metrics.linearRegression.r2Score || 0) * 100).toFixed(1)}%` : '96.0%'}
+                  R² {metrics ? `${((metrics.linearRegression?.r2Score || 0) * 100).toFixed(1)}%` : '96.0%'}
                 </span>
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Auto-updating"></div>
               </div>
@@ -246,7 +246,7 @@ export default function EnhancedQuickActions({ activeSection, onNavigate }: Enha
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 font-mono">
-                  R² {metrics ? `${((metrics.randomForest.r2Score || 0) * 100).toFixed(1)}%` : '94.0%'}
+                  R² {metrics ? `${((metrics.randomForest?.r2Score || 0) * 100).toFixed(1)}%` : '94.0%'}
                 </span>
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Auto-updating"></div>
               </div>
@@ -279,8 +279,8 @@ export default function EnhancedQuickActions({ activeSection, onNavigate }: Enha
             <div className="text-lg font-bold text-green-700 font-mono">
               {metrics ? 
                 `${Math.max(
-                  (metrics.linearRegression.r2Score || 0) * 100,
-                  (metrics.randomForest.r2Score || 0) * 100
+                  (metrics.linearRegression?.r2Score || 0) * 100,
+                  (metrics.randomForest?.r2Score || 0) * 100
                 ).toFixed(1)}%` 
                 : '96.0%'
               }
