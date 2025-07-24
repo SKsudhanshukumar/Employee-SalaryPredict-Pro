@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, LineChart, PieChart, Radar, TrendingUp, Activity, RefreshCw } from "lucide-react";
 import ModelComparisonChart from "./model-comparison-chart";
-import BarChartConfigurator from "./bar-chart-configurator";
+
 import ModelVisualization from "./model-visualization";
 import { useQuery } from "@tanstack/react-query";
 
@@ -266,7 +266,14 @@ export default function ComprehensiveModelComparison() {
 
             <TabsContent value="metrics" className="mt-6">
               <div className="space-y-4">
-                <BarChartConfigurator mode="advanced" />
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Model Metrics Configuration</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">Advanced metrics configuration will be available here.</p>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 

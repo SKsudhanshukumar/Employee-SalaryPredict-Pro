@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -88,13 +88,14 @@ export default function StatusDisplay({
     return num.toString();
   };
 
-  const formatCurrency = (num: number) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatCurrency = React.useMemo(() => {
+    const formatter = new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 0,
-    }).format(num);
-  };
+    });
+    return (num: number) => formatter.format(num);
+  }, []);
 
   // Cards display type
   if (type === 'cards') {
@@ -147,7 +148,7 @@ export default function StatusDisplay({
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg. Salary</p>
                 <p className="text-2xl font-inter font-bold text-gray-900">
-                  {stats ? formatCurrency(stats.avgSalary) : '$0'}
+                  {stats ? formatCurrency(stats.avgSalary) : '₹0'}
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -218,13 +219,13 @@ export default function StatusDisplay({
                   <div className="flex items-center space-x-1">
                     <RefreshCw className="h-4 w-4 text-blue-500" />
                     <span className="font-medium">
-                      LR: {((metrics.linearRegression.r2Score || 0) * 100).toFixed(1)}%
+                      LR: {((metrics.linearRegression?.r2Score || 0) * 100).toFixed(1)}%
                     </span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <RefreshCw className="h-4 w-4 text-green-500" />
                     <span className="font-medium">
-                      RF: {((metrics.randomForest.r2Score || 0) * 100).toFixed(1)}%
+                      RF: {((metrics.randomForest?.r2Score || 0) * 100).toFixed(1)}%
                     </span>
                   </div>
                 </>
@@ -258,7 +259,7 @@ export default function StatusDisplay({
         <div className="flex items-center space-x-2">
           <DollarSign className="w-4 h-4 text-green-600" />
           <span className="text-sm font-medium">
-            {stats ? formatCurrency(stats.avgSalary) : '$0'} avg
+            {stats ? formatCurrency(stats.avgSalary) : '₹0'} avg
           </span>
         </div>
         <div className="flex items-center space-x-2">
@@ -271,8 +272,8 @@ export default function StatusDisplay({
           <div className="flex items-center space-x-2">
             <Brain className="w-4 h-4 text-blue-600" />
             <span className="text-sm font-medium">
-              LR: {((metrics.linearRegression.r2Score || 0) * 100).toFixed(1)}% | 
-              RF: {((metrics.randomForest.r2Score || 0) * 100).toFixed(1)}%
+              LR: {((metrics.linearRegression?.r2Score || 0) * 100).toFixed(1)}% | 
+              RF: {((metrics.randomForest?.r2Score || 0) * 100).toFixed(1)}%
             </span>
           </div>
         )}

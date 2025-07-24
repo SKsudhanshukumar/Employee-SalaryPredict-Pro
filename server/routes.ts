@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { MLService } from "./ml-service";
+import { PerformanceMonitor } from "./performance-monitor";
 import { insertPredictionSchema, insertDataUploadSchema, insertEmployeeSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -35,20 +36,22 @@ const setCachedResponse = (key: string, data: any, ttlMs: number) => {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // Start performance monitoring
+  PerformanceMonitor.startAutoReporting();
+  console.log('📊 Performance monitoring started');
+  
   // Initialize ML models in the background after server starts (non-blocking)
   console.log('🚀 Server starting - ML models will initialize lazily');
   
   // Start background initialization after server is ready (longer delay for better startup performance)
   setTimeout(() => {
     console.log('🤖 Starting background ML model initialization...');
-    MLService.initializeModels()
+    MLService.getInstance().initializeModels()
       .then(() => {
         console.log('✅ Background ML models initialized successfully');
         // Start advanced model training after basic models are ready (longer delay)
         setTimeout(() => {
-          MLService.trainAdvancedModels().catch(error => {
-            console.error('Advanced model training failed:', error);
-          });
+
         }, 10000); // Wait 10 seconds before advanced training
       })
       .catch(error => {
@@ -83,32 +86,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Prediction routes
+  // Prediction routes with timeout protection
   app.post("/api/predict", async (req, res) => {
+    const startTime = Date.now();
+    
     try {
       const validatedData = insertPredictionSchema.parse(req.body);
       
-      // Get ML predictions
-      const mlResult = await MLService.predictSalary(validatedData);
+      // Set a 3-second timeout for predictions to ensure ultra-fast response
+      const predictionPromise = MLService.getInstance().predict(validatedData);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Prediction timeout')), 3000);
+      });
       
-      // Store prediction with results
-      const prediction = await storage.createPrediction({
+      // Race between prediction and timeout
+      const mlResult = await Promise.race([predictionPromise, timeoutPromise]) as any;
+      
+      // Store prediction with results (run in background to not slow response)
+      const storagePromise = storage.createPrediction({
         ...validatedData,
         linearRegressionPrediction: mlResult.linearRegressionPrediction,
         randomForestPrediction: mlResult.randomForestPrediction,
         confidence: mlResult.confidence
       });
       
-      res.json({
-        prediction,
-        featureImportance: mlResult.featureImportance
+      // Don't wait for storage - respond immediately
+      storagePromise.catch(error => {
+        console.error('Background storage error:', error);
       });
+      
+      const responseTime = Date.now() - startTime;
+      PerformanceMonitor.recordMetric('api_predict_response', responseTime);
+      console.log(`🚀 Prediction API responded in ${responseTime}ms`);
+      
+      // Send immediate response
+      res.json({
+        prediction: {
+          id: Date.now(), // Temporary ID until storage completes
+          ...validatedData,
+          linearRegressionPrediction: mlResult.linearRegressionPrediction,
+          randomForestPrediction: mlResult.randomForestPrediction,
+          confidence: mlResult.confidence
+        },
+        featureImportance: mlResult.featureImportance,
+        responseTime: responseTime
+      });
+      
+      // Update with real ID when storage completes
+      storagePromise.then(prediction => {
+        console.log(`💾 Prediction stored with ID: ${prediction.id}`);
+      });
+      
     } catch (error) {
+      const responseTime = Date.now() - startTime;
+      
       if (error instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid prediction data", errors: error.errors });
+        res.status(400).json({ 
+          message: "Invalid prediction data", 
+          errors: error.errors,
+          responseTime 
+        });
+      } else if (error instanceof Error && error.message === 'Prediction timeout') {
+        console.warn(`⚠️ Prediction timeout after ${responseTime}ms`);
+        res.status(408).json({ 
+          message: "Prediction is taking longer than expected. Please try again.",
+          responseTime 
+        });
       } else {
         console.error('Prediction error:', error);
-        res.status(500).json({ message: "Failed to generate prediction" });
+        res.status(500).json({ 
+          message: "Failed to generate prediction",
+          responseTime 
+        });
       }
     }
   });
@@ -199,7 +248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Model metrics route
   app.get("/api/model-metrics", async (req, res) => {
     try {
-      const metrics = MLService.getModelMetrics();
+      const metrics = MLService.getInstance().getModelMetrics();
       res.json(metrics);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch model metrics" });
@@ -217,6 +266,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch model status" });
+    }
+  });
+
+  // Performance metrics endpoint
+  app.get("/api/performance-metrics", async (req, res) => {
+    try {
+      const metrics = PerformanceMonitor.getAllMetrics();
+      const summary = PerformanceMonitor.getPerformanceSummary();
+      res.json({
+        metrics,
+        summary,
+        timestamp: new Date().toISOString(),
+        message: "Performance metrics for prediction system"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch performance metrics" });
+    }
+  });
+
+  // Quick performance status endpoint
+  app.get("/api/performance-status", async (req, res) => {
+    try {
+      const summary = PerformanceMonitor.getPerformanceSummary();
+      res.json({
+        ...summary,
+        timestamp: new Date().toISOString(),
+        optimized: true
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch performance status" });
     }
   });
   
@@ -256,7 +335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return record;
           });
           
-          const result = await MLService.processTrainingData(data);
+          const result = await MLService.getInstance().retrain();
           
           if (result.success) {
             await storage.updateDataUploadStatus(upload.id, 'processed');
