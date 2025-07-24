@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,50 +58,114 @@ export default function Prediction({
     companySize: '',
   });
   
+  const [lastRequestTime, setLastRequestTime] = useState<number>(0);
+  const [isDebouncing, setIsDebouncing] = useState<boolean>(false);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch predictions for results display
+  // Fetch predictions for results display (optimized for performance)
   const { data: predictions, isLoading: resultsLoading, refetch } = useQuery<PredictionWithFeatures[]>({
     queryKey: ["/api/predictions"],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/predictions');
       return response.json();
     },
-    staleTime: 0,
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
     gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false, // Reduce unnecessary refetches
     refetchOnMount: true,
     enabled: mode === 'results' || mode === 'combined'
   });
 
   const predictMutation = useMutation({
     mutationFn: async (data: PredictionFormData) => {
-      const response = await apiRequest('POST', '/api/predict', data);
-      return response.json();
+      const startTime = Date.now();
+      console.log('🚀 Starting optimized prediction request...');
+      
+      // Add request timeout for better UX
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      
+      try {
+        const response = await apiRequest('POST', '/api/predict', data, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        const networkTime = Date.now() - startTime;
+        console.log(`📡 Network request completed in ${networkTime}ms`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const parseStart = Date.now();
+        const result = await response.json();
+        const parseTime = Date.now() - parseStart;
+        const totalTime = Date.now() - startTime;
+        
+        console.log(`📊 JSON parsing took ${parseTime}ms`);
+        console.log(`⚡ Total prediction completed in ${totalTime}ms`);
+        
+        return { ...result, clientResponseTime: totalTime };
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
     },
     onSuccess: (data) => {
+      const responseTime = data.clientResponseTime || 0;
+      const serverTime = data.responseTime || 0;
+      
+      console.log('✅ Prediction success handler started');
+      
+      // Show toast notification
       toast({
         title: "Prediction Generated",
-        description: `New salary prediction: $${data.prediction.linearRegressionPrediction.toLocaleString()}`,
+        description: `Salary prediction: ${formatCurrency(data.prediction.linearRegressionPrediction)} (${responseTime}ms)`,
       });
       
-      // Update cache with new prediction
-      queryClient.setQueryData(['/api/predictions'], (oldData: any) => {
-        const newPrediction = { prediction: data.prediction, featureImportance: data.featureImportance };
-        if (!oldData) return [newPrediction];
-        return [newPrediction, ...oldData];
-      });
+      // Update cache with new prediction (optimized - no invalidation needed)
+      if (mode === 'results' || mode === 'combined') {
+        queryClient.setQueryData(['/api/predictions'], (oldData: any) => {
+          const newPrediction = { prediction: data.prediction, featureImportance: data.featureImportance };
+          if (!oldData) return [newPrediction];
+          return [newPrediction, ...oldData];
+        });
+      }
       
-      queryClient.invalidateQueries({ 
-        queryKey: ['/api/predictions'],
-        refetchType: 'active'
-      });
+      // Log performance metrics
+      if (responseTime > 2000) {
+        console.warn(`⚠️ Slow prediction response: ${responseTime}ms (server: ${serverTime}ms)`);
+      } else if (responseTime > 1000) {
+        console.log(`⚡ Moderate prediction response: ${responseTime}ms (server: ${serverTime}ms)`);
+      } else {
+        console.log(`🚀 Fast prediction response: ${responseTime}ms (server: ${serverTime}ms)`);
+      }
+      
+      console.log('✅ Prediction success handler completed');
     },
     onError: (error: any) => {
+      console.error('Prediction error:', error);
+      
+      let errorMessage = "Failed to generate salary prediction.";
+      let title = "Prediction Failed";
+      
+      if (error.message?.includes('timeout') || error.message?.includes('AbortError')) {
+        errorMessage = "Request timed out. The server may be busy - please try again in a moment.";
+        title = "Request Timeout";
+      } else if (error.message?.includes('408')) {
+        errorMessage = "Prediction is taking longer than expected. The system is optimizing - please try again.";
+        title = "Processing Delay";
+      } else if (error.message?.includes('500')) {
+        errorMessage = "Server error occurred. Please try again in a few moments.";
+        title = "Server Error";
+      }
+      
       toast({
-        title: "Prediction Failed",
-        description: error.message || "Failed to generate salary prediction.",
+        title,
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -109,6 +173,21 @@ export default function Prediction({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent rapid successive requests (debouncing)
+    const now = Date.now();
+    if (now - lastRequestTime < 1000) { // 1 second debounce
+      if (!isDebouncing) {
+        setIsDebouncing(true);
+        toast({
+          title: "Please Wait",
+          description: "Processing your previous request...",
+          variant: "default",
+        });
+        setTimeout(() => setIsDebouncing(false), 1000);
+      }
+      return;
+    }
     
     if (!formData.jobTitle || !formData.department || !formData.location || 
         !formData.educationLevel || !formData.companySize || formData.experience < 0) {
@@ -120,6 +199,7 @@ export default function Prediction({
       return;
     }
 
+    setLastRequestTime(now);
     predictMutation.mutate(formData);
   };
 
@@ -127,14 +207,15 @@ export default function Prediction({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Utility functions
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+  // Utility functions (optimized with memoization)
+  const formatCurrency = React.useMemo(() => {
+    const formatter = new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 0,
-    }).format(amount);
-  };
+    });
+    return (amount: number) => formatter.format(amount);
+  }, []);
 
   const calculateRange = (prediction: number, confidence: number) => {
     const margin = prediction * (1 - confidence / 100) * 0.5;
@@ -277,11 +358,28 @@ export default function Prediction({
           <div className="md:col-span-2 lg:col-span-3 flex justify-center">
             <Button 
               type="submit" 
-              className="bg-primary text-white hover:bg-blue-700 px-8 py-3"
-              disabled={predictMutation.isPending}
+              className="bg-primary text-white hover:bg-blue-700 px-8 py-3 transition-all duration-200 relative"
+              disabled={predictMutation.isPending || isDebouncing}
             >
-              <Calculator className="w-4 h-4 mr-2" />
-              {predictMutation.isPending ? 'Predicting...' : 'Predict Salary'}
+              {predictMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Generating Prediction...
+                </>
+              ) : isDebouncing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-pulse" />
+                  Please Wait...
+                </>
+              ) : (
+                <>
+                  <Calculator className="w-4 h-4 mr-2" />
+                  Predict Salary
+                </>
+              )}
+              {predictMutation.isPending && (
+                <div className="absolute inset-0 bg-blue-600 opacity-20 animate-pulse rounded"></div>
+              )}
             </Button>
           </div>
         </form>

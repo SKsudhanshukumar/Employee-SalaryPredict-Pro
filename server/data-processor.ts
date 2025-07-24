@@ -15,6 +15,8 @@ export interface EmployeeRecord {
   performanceRating: number;
   certifications: number;
   salary: number;
+  companySize: string;
+  jobTitle: string;
 }
 
 export interface TrainingData {
@@ -184,17 +186,16 @@ export class DataProcessor {
     return allRecords;
   }
 
-  static trainLinearRegression(data: TrainingData): ModelResults {
-    const { features, targets } = data;
+  static trainLinearRegression(features: number[][], targets: number[]): { weights: number[]; bias: number; r2Score: number; predictions: number[] } {
     const n = features.length;
     const m = features[0]?.length || 0;
 
     if (n === 0 || m === 0) {
       return {
-        predictions: [],
-        accuracy: 0,
-        featureImportance: {},
-        metrics: { r2Score: 0, meanAbsoluteError: 0, rootMeanSquareError: 0 }
+        weights: [],
+        bias: 0,
+        r2Score: 0,
+        predictions: []
       };
     }
 
@@ -219,215 +220,148 @@ export class DataProcessor {
 
     const metrics = this.calculateMetrics(targets, predictions);
     
-    // Calculate feature importance from weights (excluding bias)
-    const featureImportance: Record<string, number> = {};
-    const totalImportance = weights.slice(1).reduce((sum, w) => sum + Math.abs(w), 0);
+    const r2Score = this.calculateR2Score(targets, predictions);
     
-    data.featureNames.forEach((name, idx) => {
-      if (totalImportance > 0) {
-        featureImportance[name] = Math.abs(weights[idx + 1]) / totalImportance;
-      } else {
-        featureImportance[name] = 1 / data.featureNames.length;
-      }
-    });
-
     return {
-      predictions,
-      accuracy: metrics.r2Score,
-      featureImportance,
-      metrics,
       weights: weights.slice(1), // Exclude bias (first element)
       bias: weights[0],
-      featureMeans,
-      featureStds
+      r2Score,
+      predictions
     };
   }
 
-  static trainRandomForest(data: TrainingData, numTrees: number = 80): ModelResults {
-    const { features, targets } = data;
+  static trainRandomForest(features: number[][], targets: number[], numTrees: number = 10): { trees: any[]; r2Score: number; predictions: number[] } {
+    const trees: any[] = [];
     
-    if (features.length === 0) {
-      return {
-        predictions: [],
-        accuracy: 0,
-        featureImportance: {},
-        metrics: { r2Score: 0, meanAbsoluteError: 0, rootMeanSquareError: 0 }
-      };
-    }
-
-    // Enhanced hyperparameter optimization with cross-validation insights
-    const datasetSize = features.length;
-    const numFeatures = features[0].length;
-    
-    // Optimized tree count for faster training while maintaining accuracy
-    const optimalNumTrees = Math.min(numTrees, Math.max(50, Math.floor(Math.sqrt(datasetSize) * 1.2)));
-    
-    // Balanced feature subsampling for speed and accuracy
-    const baseRatio = Math.sqrt(numFeatures) / numFeatures;
-    const adaptiveRatio = Math.max(0.4, Math.min(0.7, baseRatio * 1.1));
-    const numFeaturesToSelect = Math.max(4, Math.floor(numFeatures * adaptiveRatio));
-    
-    // Optimized tree parameters for faster training
-    const maxDepth = Math.min(20, Math.max(10, Math.floor(Math.log2(datasetSize)) + 3));
-    const minSamplesLeaf = Math.max(3, Math.floor(datasetSize * 0.001));
-    const minSamplesSplit = Math.max(8, Math.floor(datasetSize * 0.002));
-
-    console.log(`🌲 Enhanced RF Hyperparameters: trees=${optimalNumTrees}, depth=${maxDepth}, features=${numFeaturesToSelect}/${numFeatures}, minLeaf=${minSamplesLeaf}`);
-
-    const trees: EnhancedDecisionTree[] = [];
-    const allFeatureImportance: Record<string, number>[] = [];
-    const oobPredictions: number[][] = Array(features.length).fill(null).map(() => []);
-    
-    // Balanced stratification for speed and distribution quality
-    const targetQuantiles = this.calculateTargetQuantiles(targets, 6);
-    
-    // Feature correlation analysis for better selection
-    const featureCorrelations = this.calculateFeatureCorrelations(features, targets);
-    
-    // Feature importance tracking for adaptive selection
-    const cumulativeFeatureImportance: Record<string, number> = {};
-    data.featureNames.forEach(name => cumulativeFeatureImportance[name] = 0);
-
-    // Train multiple decision trees with advanced techniques
-    for (let i = 0; i < optimalNumTrees; i++) {
-      // Use improved stratified bootstrap sampling
-      const { bootstrapFeatures, bootstrapTargets, oobIndices } = 
-        this.enhancedStratifiedBootstrapSample(features, targets, targetQuantiles);
+    for (let i = 0; i < numTrees; i++) {
+      // Bootstrap sampling
+      const bootstrapIndices = [];
+      for (let j = 0; j < features.length; j++) {
+        bootstrapIndices.push(Math.floor(Math.random() * features.length));
+      }
       
-      // Adaptive feature selection based on previous tree performance
-      const selectedFeatureIndices = this.adaptiveFeatureSelection(
-        features[0].length, 
-        numFeaturesToSelect, 
-        i, 
-        optimalNumTrees,
-        featureCorrelations,
-        cumulativeFeatureImportance,
-        data.featureNames
-      );
+      const bootstrapFeatures = bootstrapIndices.map(idx => features[idx]);
+      const bootstrapTargets = bootstrapIndices.map(idx => targets[idx]);
       
-      // Create tree with enhanced parameters and regularization
-      const tree = new EnhancedDecisionTree(
-        maxDepth, 
-        minSamplesLeaf, 
-        minSamplesSplit,
-        0.1 // L2 regularization factor
-      );
-      tree.train(bootstrapFeatures, bootstrapTargets, selectedFeatureIndices, data.featureNames);
+      // Train simple decision tree
+      const tree = this.trainSimpleTree(bootstrapFeatures, bootstrapTargets);
       trees.push(tree);
-      
-      // Update cumulative feature importance
-      const treeImportance = tree.getFeatureImportance();
-      Object.entries(treeImportance).forEach(([name, importance]) => {
-        cumulativeFeatureImportance[name] += importance;
-      });
-      
-      // Calculate out-of-bag predictions with validation
-      for (const oobIndex of oobIndices) {
-        const prediction = tree.predict(features[oobIndex]);
-        if (!isNaN(prediction) && isFinite(prediction) && prediction > 0) {
-          oobPredictions[oobIndex].push(prediction);
-        }
-      }
-      
-      allFeatureImportance.push(treeImportance);
     }
-
-    // Make predictions using advanced ensemble method with confidence weighting
-    const targetMean = targets.reduce((sum, val) => sum + val, 0) / targets.length;
-    const targetStd = Math.sqrt(
-      targets.reduce((sum, val) => sum + Math.pow(val - targetMean, 2), 0) / targets.length
-    );
     
-    const predictions = features.map((featureVector, index) => {
-      const treePredictions = trees.map((tree, treeIndex) => {
-        const prediction = tree.predict(featureVector);
-        const confidence = tree.getPredictionConfidence(featureVector);
-        return { prediction, confidence, treeIndex };
-      });
-      
-      let validPredictions = treePredictions
-        .filter(({ prediction, confidence }) => 
-          !isNaN(prediction) && isFinite(prediction) && prediction > 0 && confidence > 0.1)
-        .map(({ prediction, confidence }) => ({ prediction, confidence }));
-      
-      if (validPredictions.length === 0) {
-        return targetMean; // fallback to mean
+    // Make predictions
+    const predictions: number[] = [];
+    for (let i = 0; i < features.length; i++) {
+      let sum = 0;
+      for (const tree of trees) {
+        sum += this.predictWithTree(tree, features[i]);
       }
-      
-      // Advanced outlier removal using modified Z-score
-      if (validPredictions.length > 8) {
-        const predValues = validPredictions.map(p => p.prediction);
-        const median = this.calculateMedian(predValues);
-        const mad = this.calculateMAD(predValues, median);
-        
-        if (mad > 0) {
-          const threshold = 3.0; // Slightly stricter threshold
-          validPredictions = validPredictions.filter(({ prediction }) => {
-            const modifiedZScore = 0.6745 * (prediction - median) / mad;
-            return Math.abs(modifiedZScore) < threshold;
-          });
-        }
-        
-        if (validPredictions.length === 0) {
-          validPredictions = [{ prediction: median, confidence: 1.0 }];
-        }
-      }
-      
-      // Confidence-weighted ensemble prediction
-      const totalConfidence = validPredictions.reduce((sum, { confidence }) => sum + confidence, 0);
-      const weightedPrediction = validPredictions.reduce((sum, { prediction, confidence }) => 
-        sum + prediction * (confidence / totalConfidence), 0);
-      
-      // Apply adaptive bounds based on data distribution
-      const lowerBound = Math.max(25000, targetMean - 3.5 * targetStd);
-      const upperBound = Math.min(1000000, targetMean + 3.5 * targetStd);
-      
-      return Math.max(lowerBound, Math.min(upperBound, weightedPrediction));
-    });
-
-    // Calculate weighted feature importance across all trees
-    const featureImportance: Record<string, number> = {};
-    const totalTrees = allFeatureImportance.length;
-    
-    data.featureNames.forEach(name => {
-      const weightedImportance = allFeatureImportance.reduce((sum, treeImportance, treeIndex) => {
-        const importance = treeImportance[name] || 0;
-        // Weight later trees slightly more as they benefit from adaptive selection
-        const weight = 1 + (treeIndex / totalTrees) * 0.2;
-        return sum + importance * weight;
-      }, 0);
-      
-      featureImportance[name] = weightedImportance / totalTrees;
-    });
-
-    // Normalize feature importance
-    const totalImportance = Object.values(featureImportance).reduce((sum, val) => sum + val, 0);
-    if (totalImportance > 0) {
-      Object.keys(featureImportance).forEach(name => {
-        featureImportance[name] /= totalImportance;
-      });
+      predictions.push(Math.max(0, sum / trees.length));
     }
-
-    // Calculate out-of-bag score for better model evaluation
-    const oobScore = this.calculateOOBScore(oobPredictions, targets);
-    const metrics = this.calculateMetrics(targets, predictions);
     
-    // Enhanced metrics with confidence intervals
-    const enhancedMetrics = this.calculateEnhancedMetrics(targets, predictions, oobPredictions);
+    const r2Score = this.calculateR2Score(targets, predictions);
     
-    // Use OOB score as a more reliable accuracy measure if available
-    const finalAccuracy = oobScore !== null ? oobScore : metrics.r2Score;
+    return { trees, r2Score, predictions };
+  }
 
+  private static calculateR2Score(actual: number[], predicted: number[]): number {
+    const actualMean = actual.reduce((sum, val) => sum + val, 0) / actual.length;
+    
+    let totalSumSquares = 0;
+    let residualSumSquares = 0;
+    
+    for (let i = 0; i < actual.length; i++) {
+      totalSumSquares += Math.pow(actual[i] - actualMean, 2);
+      residualSumSquares += Math.pow(actual[i] - predicted[i], 2);
+    }
+    
+    return 1 - (residualSumSquares / totalSumSquares);
+  }
+
+  private static trainSimpleTree(features: number[][], targets: number[]): any {
+    if (features.length === 0) return { prediction: 0 };
+    
+    const avgTarget = targets.reduce((sum, val) => sum + val, 0) / targets.length;
+    
+    if (features.length < 5) {
+      return { prediction: avgTarget };
+    }
+    
+    let bestSplit = null;
+    let bestScore = Infinity;
+    
+    for (let featureIdx = 0; featureIdx < features[0].length; featureIdx++) {
+      const values = features.map(f => f[featureIdx]);
+      const uniqueValues = Array.from(new Set(values)).sort((a, b) => a - b);
+      
+      for (let i = 0; i < uniqueValues.length - 1; i++) {
+        const threshold = (uniqueValues[i] + uniqueValues[i + 1]) / 2;
+        
+        const leftIndices = [];
+        const rightIndices = [];
+        
+        for (let j = 0; j < features.length; j++) {
+          if (features[j][featureIdx] <= threshold) {
+            leftIndices.push(j);
+          } else {
+            rightIndices.push(j);
+          }
+        }
+        
+        if (leftIndices.length === 0 || rightIndices.length === 0) continue;
+        
+        const leftTargets = leftIndices.map(idx => targets[idx]);
+        const rightTargets = rightIndices.map(idx => targets[idx]);
+        
+        const leftMse = this.calculateMSE(leftTargets);
+        const rightMse = this.calculateMSE(rightTargets);
+        
+        const weightedMse = (leftIndices.length * leftMse + rightIndices.length * rightMse) / features.length;
+        
+        if (weightedMse < bestScore) {
+          bestScore = weightedMse;
+          bestSplit = {
+            featureIdx,
+            threshold,
+            leftIndices,
+            rightIndices
+          };
+        }
+      }
+    }
+    
+    if (!bestSplit) {
+      return { prediction: avgTarget };
+    }
+    
+    const leftFeatures = bestSplit.leftIndices.map(idx => features[idx]);
+    const leftTargets = bestSplit.leftIndices.map(idx => targets[idx]);
+    const rightFeatures = bestSplit.rightIndices.map(idx => features[idx]);
+    const rightTargets = bestSplit.rightIndices.map(idx => targets[idx]);
+    
     return {
-      predictions,
-      accuracy: finalAccuracy,
-      featureImportance,
-      metrics: {
-        ...metrics,
-        ...enhancedMetrics,
-        oobScore: oobScore || 0
-      }
+      featureIdx: bestSplit.featureIdx,
+      threshold: bestSplit.threshold,
+      left: this.trainSimpleTree(leftFeatures, leftTargets),
+      right: this.trainSimpleTree(rightFeatures, rightTargets)
     };
+  }
+
+  private static predictWithTree(tree: any, features: number[]): number {
+    if (tree.prediction !== undefined) {
+      return tree.prediction;
+    }
+    
+    if (features[tree.featureIdx] <= tree.threshold) {
+      return this.predictWithTree(tree.left, features);
+    } else {
+      return this.predictWithTree(tree.right, features);
+    }
+  }
+
+  private static calculateMSE(values: number[]): number {
+    if (values.length === 0) return 0;
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+    return values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
   }
 
   private static normalizeFeatures(features: number[][]) {
