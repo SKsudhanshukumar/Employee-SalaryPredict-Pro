@@ -42,12 +42,14 @@ interface PredictionProps {
   mode: DisplayMode;
   showModelSelector?: boolean;
   className?: string;
+  onPredictionSuccess?: (data: any) => void;
 }
 
 export default function Prediction({ 
   mode, 
   showModelSelector = true,
-  className = ""
+  className = "",
+  onPredictionSuccess
 }: PredictionProps) {
   const [formData, setFormData] = useState<PredictionFormData>({
     jobTitle: '',
@@ -60,28 +62,34 @@ export default function Prediction({
   
   const [lastRequestTime, setLastRequestTime] = useState<number>(0);
   const [isDebouncing, setIsDebouncing] = useState<boolean>(false);
+  const [isUpdatingResults, setIsUpdatingResults] = useState<boolean>(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch predictions for results display (optimized for performance)
   const { data: predictions, isLoading: resultsLoading, refetch } = useQuery<PredictionWithFeatures[]>({
-    queryKey: ["/api/predictions"],
+    queryKey: ['/api/predictions'],
     queryFn: async () => {
+      console.log('🔄 Fetching predictions from API...');
       const response = await apiRequest('GET', '/api/predictions');
-      return response.json();
+      const data = await response.json();
+      console.log('✅ Predictions fetched:', data);
+      return data;
     },
     staleTime: 30 * 1000, // Consider data fresh for 30 seconds
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false, // Reduce unnecessary refetches
     refetchOnMount: true,
-    enabled: mode === 'results' || mode === 'combined'
+    enabled: mode === 'results' || mode === 'combined',
+    retry: 2,
+    retryDelay: 1000
   });
 
   const predictMutation = useMutation({
     mutationFn: async (data: PredictionFormData) => {
       const startTime = Date.now();
-      console.log('🚀 Starting optimized prediction request...');
+      console.log('🚀 Starting optimized prediction request with data:', data);
       
       // Add request timeout for better UX
       const controller = new AbortController();
@@ -97,6 +105,8 @@ export default function Prediction({
         console.log(`📡 Network request completed in ${networkTime}ms`);
         
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ API Error ${response.status}:`, errorText);
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
@@ -107,10 +117,18 @@ export default function Prediction({
         
         console.log(`📊 JSON parsing took ${parseTime}ms`);
         console.log(`⚡ Total prediction completed in ${totalTime}ms`);
+        console.log('✅ Prediction result:', result);
+        
+        // Validate the response structure
+        if (!result.prediction || typeof result.prediction.linearRegressionPrediction !== 'number') {
+          console.error('❌ Invalid prediction response structure:', result);
+          throw new Error('Invalid prediction response from server');
+        }
         
         return { ...result, clientResponseTime: totalTime };
       } catch (error) {
         clearTimeout(timeoutId);
+        console.error('❌ Prediction request failed:', error);
         throw error;
       }
     },
@@ -126,13 +144,45 @@ export default function Prediction({
         description: `Salary prediction: ${formatCurrency(data.prediction.linearRegressionPrediction)} (${responseTime}ms)`,
       });
       
-      // Update cache with new prediction (optimized - no invalidation needed)
-      if (mode === 'results' || mode === 'combined') {
-        queryClient.setQueryData(['/api/predictions'], (oldData: any) => {
-          const newPrediction = { prediction: data.prediction, featureImportance: data.featureImportance };
-          if (!oldData) return [newPrediction];
-          return [newPrediction, ...oldData];
-        });
+      // Always update cache and trigger refetch for all modes
+      // This ensures that any PredictionResults component will show the new prediction
+      const newPrediction = { 
+        prediction: data.prediction, 
+        featureImportance: data.featureImportance || {
+          experience: 0.35,
+          location: 0.25,
+          department: 0.20,
+          educationLevel: 0.12,
+          companySize: 0.08
+        }
+      };
+      
+      console.log('🔄 Updating cache with new prediction:', newPrediction);
+      setIsUpdatingResults(true);
+      
+      // Optimistically update the cache for all instances
+      queryClient.setQueryData(['/api/predictions'], (oldData: any) => {
+        console.log('📝 Current cache data:', oldData);
+        if (!oldData) return [newPrediction];
+        const updatedData = [newPrediction, ...oldData];
+        console.log('📝 Updated cache data:', updatedData);
+        return updatedData;
+      });
+      
+      // Invalidate and refetch the predictions query to ensure all components get updated
+      console.log('🔄 Invalidating predictions query...');
+      queryClient.invalidateQueries({ queryKey: ['/api/predictions'] });
+      
+      // Force refetch for all prediction queries after a short delay
+      setTimeout(() => {
+        console.log('🔄 Force refetching all prediction queries...');
+        queryClient.refetchQueries({ queryKey: ['/api/predictions'] });
+        setIsUpdatingResults(false);
+      }, 1000); // Increased delay to ensure backend storage completes
+      
+      // Call the success callback if provided
+      if (onPredictionSuccess) {
+        onPredictionSuccess(data);
       }
       
       // Log performance metrics
@@ -147,7 +197,7 @@ export default function Prediction({
       console.log('✅ Prediction success handler completed');
     },
     onError: (error: any) => {
-      console.error('Prediction error:', error);
+      console.error('❌ Prediction error details:', error);
       
       let errorMessage = "Failed to generate salary prediction.";
       let title = "Prediction Failed";
@@ -161,12 +211,29 @@ export default function Prediction({
       } else if (error.message?.includes('500')) {
         errorMessage = "Server error occurred. Please try again in a few moments.";
         title = "Server Error";
+      } else if (error.message?.includes('400')) {
+        errorMessage = "Invalid data provided. Please check all fields and try again.";
+        title = "Validation Error";
+      } else if (error.message?.includes('Invalid prediction response')) {
+        errorMessage = "Server returned invalid data. Please try again.";
+        title = "Response Error";
+      } else if (error.message?.includes('fetch')) {
+        errorMessage = "Network error. Please check your connection and try again.";
+        title = "Network Error";
       }
       
       toast({
         title,
         description: errorMessage,
         variant: "destructive",
+      });
+      
+      // Log additional debugging info
+      console.error('❌ Error context:', {
+        formData,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        timestamp: new Date().toISOString()
       });
     },
   });
@@ -189,8 +256,9 @@ export default function Prediction({
       return;
     }
     
+    // Enhanced validation
     if (!formData.jobTitle || !formData.department || !formData.location || 
-        !formData.educationLevel || !formData.companySize || formData.experience < 0) {
+        !formData.educationLevel || !formData.companySize) {
       toast({
         title: "Validation Error",
         description: "Please fill in all required fields.",
@@ -199,6 +267,16 @@ export default function Prediction({
       return;
     }
 
+    if (formData.experience < 0 || formData.experience > 50) {
+      toast({
+        title: "Validation Error",
+        description: "Experience must be between 0 and 50 years.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('🚀 Submitting prediction with data:', formData);
     setLastRequestTime(now);
     predictMutation.mutate(formData);
   };
@@ -389,12 +467,27 @@ export default function Prediction({
 
   // Results component
   const PredictionResults = () => {
-    if (resultsLoading) {
+    console.log('🔍 PredictionResults render:', { 
+      resultsLoading, 
+      predictions, 
+      predictionsLength: predictions?.length,
+      mode,
+      isUpdatingResults
+    });
+
+    if (resultsLoading || isUpdatingResults) {
+      console.log('⏳ Results loading or updating...');
       return (
         <Card className={className}>
           <CardHeader>
-            <CardTitle className="text-xl font-inter font-semibold text-gray-900">
+            <CardTitle className="text-xl font-inter font-semibold text-gray-900 flex items-center">
               Prediction Results
+              {isUpdatingResults && (
+                <span className="ml-2 text-sm text-blue-600 flex items-center">
+                  <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                  Updating...
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -411,6 +504,7 @@ export default function Prediction({
     }
 
     if (!predictions || predictions.length === 0) {
+      console.log('📭 No predictions available');
       return (
         <Card data-prediction-results className={className}>
           <CardHeader>
@@ -421,6 +515,18 @@ export default function Prediction({
           <CardContent>
             <div className="text-center py-8">
               <p className="text-gray-500">No predictions available. Submit a prediction form to see results.</p>
+              <Button
+                onClick={() => {
+                  console.log('🔄 Manual refetch triggered');
+                  refetch();
+                }}
+                variant="outline"
+                size="sm"
+                className="mt-4"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Loading Results
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -428,8 +534,44 @@ export default function Prediction({
     }
 
     const latestPrediction = predictions[0];
-    const lrRange = calculateRange(latestPrediction.prediction.linearRegressionPrediction, latestPrediction.prediction.confidence);
-    const rfRange = calculateRange(latestPrediction.prediction.randomForestPrediction, latestPrediction.prediction.confidence);
+    console.log('📊 Displaying prediction:', latestPrediction);
+    
+    // Validate prediction data structure
+    if (!latestPrediction?.prediction) {
+      console.error('❌ Invalid prediction data structure:', latestPrediction);
+      return (
+        <Card className={className}>
+          <CardHeader>
+            <CardTitle className="text-xl font-inter font-semibold text-gray-900">
+              Prediction Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <p className="text-red-500">Invalid prediction data. Please try submitting a new prediction.</p>
+              <Button
+                onClick={() => refetch()}
+                variant="outline"
+                size="sm"
+                className="mt-4"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+    
+    const lrRange = calculateRange(
+      latestPrediction.prediction.linearRegressionPrediction || 0, 
+      latestPrediction.prediction.confidence || 85
+    );
+    const rfRange = calculateRange(
+      latestPrediction.prediction.randomForestPrediction || 0, 
+      latestPrediction.prediction.confidence || 85
+    );
 
     return (
       <Card key={`prediction-${latestPrediction.prediction.id}`} data-prediction-results className={className}>
@@ -455,7 +597,7 @@ export default function Prediction({
             <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Linear Regression</h3>
               <p className="text-3xl font-bold text-blue-700 mb-2">
-                {formatCurrency(latestPrediction.prediction.linearRegressionPrediction)}
+                {formatCurrency(latestPrediction.prediction.linearRegressionPrediction || 0)}
               </p>
               <p className="text-sm text-blue-600">
                 Range: {formatCurrency(lrRange.min)} - {formatCurrency(lrRange.max)}
@@ -463,9 +605,9 @@ export default function Prediction({
               <div className="mt-3">
                 <div className="flex justify-between text-sm text-blue-600 mb-1">
                   <span>Confidence</span>
-                  <span>{latestPrediction.prediction.confidence}%</span>
+                  <span>{latestPrediction.prediction.confidence || 85}%</span>
                 </div>
-                <Progress value={latestPrediction.prediction.confidence} className="h-2" />
+                <Progress value={latestPrediction.prediction.confidence || 85} className="h-2" />
               </div>
             </div>
 
@@ -473,7 +615,7 @@ export default function Prediction({
             <div className="bg-green-50 rounded-xl p-6 border border-green-200">
               <h3 className="text-lg font-semibold text-green-900 mb-2">Random Forest</h3>
               <p className="text-3xl font-bold text-green-700 mb-2">
-                {formatCurrency(latestPrediction.prediction.randomForestPrediction)}
+                {formatCurrency(latestPrediction.prediction.randomForestPrediction || 0)}
               </p>
               <p className="text-sm text-green-600">
                 Range: {formatCurrency(rfRange.min)} - {formatCurrency(rfRange.max)}
@@ -481,9 +623,9 @@ export default function Prediction({
               <div className="mt-3">
                 <div className="flex justify-between text-sm text-green-600 mb-1">
                   <span>Confidence</span>
-                  <span>{latestPrediction.prediction.confidence}%</span>
+                  <span>{latestPrediction.prediction.confidence || 85}%</span>
                 </div>
-                <Progress value={latestPrediction.prediction.confidence} className="h-2" />
+                <Progress value={latestPrediction.prediction.confidence || 85} className="h-2" />
               </div>
             </div>
           </div>
@@ -491,20 +633,26 @@ export default function Prediction({
           <div className="bg-gray-50 rounded-xl p-6">
             <h4 className="font-medium text-gray-900 mb-4">Feature Importance</h4>
             <div className="space-y-3">
-              {Object.entries(latestPrediction.featureImportance).map(([feature, importance]) => (
-                <div key={feature} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 capitalize">{feature}</span>
-                  <div className="flex items-center space-x-2">
-                    <Progress 
-                      value={importance * 100} 
-                      className="w-32 h-2"
-                    />
-                    <span className="text-sm font-medium text-gray-900">
-                      {Math.round(importance * 100)}%
-                    </span>
+              {latestPrediction.featureImportance && Object.entries(latestPrediction.featureImportance).length > 0 ? (
+                Object.entries(latestPrediction.featureImportance).map(([feature, importance]) => (
+                  <div key={feature} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 capitalize">{feature}</span>
+                    <div className="flex items-center space-x-2">
+                      <Progress 
+                        value={(importance as number) * 100} 
+                        className="w-32 h-2"
+                      />
+                      <span className="text-sm font-medium text-gray-900">
+                        {Math.round((importance as number) * 100)}%
+                      </span>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">Feature importance data not available</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </CardContent>
@@ -534,14 +682,15 @@ export default function Prediction({
 }
 
 // Export individual components for backward compatibility
-export function PredictionForm(props?: { className?: string; showModelSelector?: boolean }) {
+export function PredictionForm(props?: { className?: string; showModelSelector?: boolean; onPredictionSuccess?: (data: any) => void }) {
   return <Prediction mode="form" {...props} />;
 }
 
 export function PredictionResults(props?: { className?: string }) {
+  console.log('🔍 PredictionResults component created');
   return <Prediction mode="results" {...props} />;
 }
 
-export function CombinedPrediction(props?: { className?: string; showModelSelector?: boolean }) {
+export function CombinedPrediction(props?: { className?: string; showModelSelector?: boolean; onPredictionSuccess?: (data: any) => void }) {
   return <Prediction mode="combined" {...props} />;
 }

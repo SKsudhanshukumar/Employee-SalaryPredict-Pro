@@ -159,13 +159,13 @@ export default function Dashboard() {
               <StatsCards />
             </div>
 
-            {/* Prediction Form */}
+            {/* Prediction Form and Results */}
             <div id="prediction-section">
               <PredictionForm />
+              <div className="mt-6">
+                <PredictionResults />
+              </div>
             </div>
-
-            {/* Prediction Results */}
-            <PredictionResults />
 
             {/* Data Visualization */}
             <div id="analytics-section" className="grid grid-cols-1 lg:grid-cols-2 gap-6">

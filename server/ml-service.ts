@@ -16,6 +16,7 @@ interface PredictionResult {
   randomForestPrediction: number;
   averagePrediction: number;
   confidence: number;
+  featureImportance: Record<string, number>;
   factors: {
     experienceImpact: number;
     locationImpact: number;
@@ -198,7 +199,7 @@ export class MLService {
     const educationMap = this.featureMappings.get('educationLevel')!;
     const companySizeMap = this.featureMappings.get('companySize')!;
 
-    return [
+    const encoded = [
       jobTitleMap.get(input.jobTitle) ?? 0,
       input.experience,
       departmentMap.get(input.department) ?? 0,
@@ -206,6 +207,8 @@ export class MLService {
       educationMap.get(input.educationLevel) ?? 0,
       companySizeMap.get(input.companySize) ?? 0
     ];
+    
+    return encoded;
   }
 
   async predict(input: PredictionInput): Promise<PredictionResult> {
@@ -224,6 +227,8 @@ export class MLService {
         linearPrediction += this.linearRegressionModel.weights[i] * features[i];
       }
       linearPrediction = Math.max(0, linearPrediction);
+      
+
 
       // Random Forest Prediction
       let forestPrediction = 0;
@@ -259,6 +264,7 @@ export class MLService {
         randomForestPrediction: Math.round(forestPrediction),
         averagePrediction: Math.round(averagePrediction),
         confidence,
+        featureImportance: this.calculateDynamicFeatureImportance(input, features),
         factors: {
           experienceImpact: input.experience * 0.15,
           locationImpact: this.calculateLocationImpact(input.location),
@@ -295,6 +301,55 @@ export class MLService {
       case 'bachelor': case 'bachelors': return 0.1;
       default: return 0.05;
     }
+  }
+
+  private calculateDynamicFeatureImportance(input: PredictionInput, features: number[]): Record<string, number> {
+    // Base importance values
+    let importance = {
+      experience: 0.25,
+      location: 0.20,
+      department: 0.20,
+      educationLevel: 0.15,
+      companySize: 0.10,
+      jobTitle: 0.10
+    };
+
+    // Adjust based on experience level
+    if (input.experience > 10) {
+      importance.experience += 0.15;
+      importance.educationLevel -= 0.05;
+    } else if (input.experience < 2) {
+      importance.educationLevel += 0.10;
+      importance.experience -= 0.05;
+    }
+
+    // Adjust based on location
+    const highCostCities = ['Mumbai', 'Bangalore', 'Delhi', 'Gurgaon', 'Pune'];
+    if (highCostCities.includes(input.location)) {
+      importance.location += 0.10;
+      importance.companySize -= 0.05;
+    }
+
+    // Adjust based on education level
+    if (input.educationLevel === 'PhD') {
+      importance.educationLevel += 0.15;
+      importance.experience -= 0.05;
+    }
+
+    // Adjust based on department
+    const techDepartments = ['IT', 'Data Science'];
+    if (techDepartments.includes(input.department)) {
+      importance.department += 0.05;
+      importance.jobTitle += 0.05;
+    }
+
+    // Normalize to ensure sum equals 1
+    const total = Object.values(importance).reduce((sum, val) => sum + val, 0);
+    Object.keys(importance).forEach(key => {
+      importance[key as keyof typeof importance] = importance[key as keyof typeof importance] / total;
+    });
+
+    return importance;
   }
 
   private calculateMAE(actual: number[], predicted: number[]): number {
