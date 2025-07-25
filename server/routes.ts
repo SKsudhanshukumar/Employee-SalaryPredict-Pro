@@ -232,10 +232,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getAverageSalary()
       ]);
       
+      // Get model metrics to calculate average accuracy
+      let modelAccuracy = 85.0; // Default fallback
+      try {
+        const metrics = MLService.getInstance().getModelMetrics();
+        if (metrics && metrics.linearRegression && metrics.randomForest) {
+          const linearAccuracy = (metrics.linearRegression.r2Score || 0) * 100;
+          const forestAccuracy = (metrics.randomForest.r2Score || 0) * 100;
+          modelAccuracy = Math.round(((linearAccuracy + forestAccuracy) / 2) * 10) / 10; // Round to 1 decimal
+        }
+      } catch (error) {
+        console.warn('Failed to get model metrics for stats:', error);
+      }
+      
       const stats = {
         totalEmployees,
         avgSalary: Math.round(avgSalary),
-        modelAccuracy: 94.7 // From ML service
+        modelAccuracy: modelAccuracy
       };
 
       setCachedResponse(cacheKey, stats, 2 * 60 * 1000); // Cache for 2 minutes
@@ -258,11 +271,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Model training status endpoint
   app.get("/api/model-status", async (req, res) => {
     try {
+      const totalEmployees = await storage.getTotalEmployeeCount();
+      const mlStatus = MLService.getInstance().getModelStatus();
+      
       res.json({
-        isTraining: false,
-        isInitialized: true,
-        totalRecords: 200000,
-        message: "Real ML models trained on 200K+ salary records"
+        isTraining: mlStatus.isTraining,
+        isInitialized: mlStatus.isInitialized,
+        totalRecords: totalEmployees,
+        message: `Real ML models trained on ${totalEmployees.toLocaleString()}+ salary records`
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch model status" });
@@ -341,6 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await storage.updateDataUploadStatus(upload.id, 'processed');
             
             // Add processed data to storage
+            let successfullyAddedRecords = 0;
             for (const record of data.slice(0, result.recordsProcessed)) {
               try {
                 await storage.createEmployee({
@@ -352,10 +369,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   companySize: record.companySize,
                   actualSalary: parseFloat(record.actualSalary)
                 });
+                successfullyAddedRecords++;
               } catch (err) {
                 // Skip invalid records
               }
             }
+            
+            // Update training data count with successfully added records
+            storage.updateTrainingDataCount(successfullyAddedRecords);
+            
+            // Clear cache to refresh stats with new data
+            cache.delete("analytics-stats");
+            cache.delete("department-salaries");
+            cache.delete("experience-salaries");
+            console.log('📊 Cache cleared after data upload - stats will refresh');
           } else {
             await storage.updateDataUploadStatus(upload.id, 'failed');
           }

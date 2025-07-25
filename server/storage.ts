@@ -30,6 +30,9 @@ export interface IStorage {
   getSalaryByExperienceRange(): Promise<Record<string, number>>;
   getTotalEmployeeCount(): Promise<number>;
   getAverageSalary(): Promise<number>;
+  
+  // Training data management
+  updateTrainingDataCount(additionalRecords: number): void;
 }
 
 export class MemStorage implements IStorage {
@@ -39,9 +42,11 @@ export class MemStorage implements IStorage {
   private currentEmployeeId = 1;
   private currentPredictionId = 1;
   private currentUploadId = 1;
+  private trainingDataCount = 0; // Track training data count from CSV files
 
   constructor() {
     this.seedData();
+    this.loadTrainingDataCount();
   }
 
   private seedData() {
@@ -205,7 +210,10 @@ export class MemStorage implements IStorage {
   }
 
   async getTotalEmployeeCount(): Promise<number> {
-    return this.employees.size;
+    // Return training data count + newly added employees (excluding seed data)
+    const seedDataCount = 3; // We have 3 seed employees
+    const newEmployeesCount = Math.max(0, this.employees.size - seedDataCount);
+    return this.trainingDataCount + newEmployeesCount;
   }
 
   async getAverageSalary(): Promise<number> {
@@ -215,6 +223,25 @@ export class MemStorage implements IStorage {
     if (salariesWithValue.length === 0) return 0;
     
     return salariesWithValue.reduce((sum, sal) => sum + sal, 0) / salariesWithValue.length;
+  }
+
+  private async loadTrainingDataCount(): Promise<void> {
+    try {
+      // Import DataProcessor to count training data
+      const { DataProcessor } = await import('./data-processor');
+      const records = await DataProcessor.loadDatasets();
+      this.trainingDataCount = records.length;
+      console.log(`📊 Loaded training data count: ${this.trainingDataCount} records`);
+    } catch (error) {
+      console.warn('Failed to load training data count:', error);
+      this.trainingDataCount = 0;
+    }
+  }
+
+  // Method to update training data count when new data is uploaded
+  updateTrainingDataCount(additionalRecords: number): void {
+    this.trainingDataCount += additionalRecords;
+    console.log(`📊 Updated training data count: ${this.trainingDataCount} records`);
   }
 }
 

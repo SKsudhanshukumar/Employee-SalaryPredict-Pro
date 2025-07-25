@@ -21,6 +21,9 @@ interface PredictionResult {
     experienceImpact: number;
     locationImpact: number;
     educationImpact: number;
+    companySizeImpact: number;
+    departmentImpact: number;
+    jobTitleImpact?: number; // Optional for future use
   };
 }
 
@@ -157,7 +160,7 @@ export class MLService {
       } catch (error) {
         console.error('⚠️ Background training failed:', error);
       }
-    }, 5000); // Start after 5 seconds
+    }, 3000); // Start after 5 seconds
   }
 
   private buildFeatureMappings(records: EmployeeRecord[]): void {
@@ -268,7 +271,10 @@ export class MLService {
         factors: {
           experienceImpact: input.experience * 0.15,
           locationImpact: this.calculateLocationImpact(input.location),
-          educationImpact: this.calculateEducationImpact(input.educationLevel)
+          educationImpact: this.calculateEducationImpact(input.educationLevel),
+          companySizeImpact: this.calculateCompanySizeImpact(input.companySize),
+          departmentImpact: this.calculateDepartmentImpact(input.department),
+          jobTitleImpact: this.calculateJobTitleImpact(input.jobTitle)
         }
       };
     } catch (error) {
@@ -292,6 +298,21 @@ export class MLService {
   private calculateLocationImpact(location: string): number {
     const highCostCities = ['Mumbai', 'Bangalore', 'Delhi', 'Gurgaon', 'Pune'];
     return highCostCities.includes(location) ? 0.2 : 0.1;
+  }
+
+  private calculateJobTitleImpact(jobTitle: string): number {
+    const techJobTitles = ['Software Engineer', 'Data Scientist', 'DevOps Engineer', 'Product Manager', 'AI Engineer'];
+    return techJobTitles.includes(jobTitle) ? 0.25 : 0.15;
+  }
+
+  private calculateCompanySizeImpact(size: string): number {
+    const smallCompanies = ['1-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'];
+    return smallCompanies.includes(size) ? 0.2 : 0.1;
+  }
+
+  private calculateDepartmentImpact(department: string): number {
+    const techDepartments = ['IT', 'Data Science' , 'Marketing', 'Sales', 'HR', 'Finance', 'Operations'];
+    return techDepartments.includes(department) ? 0.15 : 0.10;
   }
 
   private calculateEducationImpact(education: string): number {
@@ -324,7 +345,7 @@ export class MLService {
     }
 
     // Adjust based on location
-    const highCostCities = ['Mumbai', 'Bangalore', 'Delhi', 'Gurgaon', 'Pune'];
+    const highCostCities = ['Mumbai', 'Bangalore', 'Delhi', 'Hydrabad', 'Chennai', 'Pune', 'Rmote'];
     if (highCostCities.includes(input.location)) {
       importance.location += 0.10;
       importance.companySize -= 0.05;
@@ -337,10 +358,17 @@ export class MLService {
     }
 
     // Adjust based on department
-    const techDepartments = ['IT', 'Data Science'];
+    const techDepartments = ['IT', 'Data Science' , 'Marketing', 'Sales', 'HR', 'Finance', 'Operations'];
     if (techDepartments.includes(input.department)) {
       importance.department += 0.05;
       importance.jobTitle += 0.05;
+    }
+
+    // Adjust based on company size
+    const smallCompanies = ['1-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'];
+    if (smallCompanies.includes(input.companySize)) {
+      importance.companySize += 0.10;
+      importance.department -= 0.05;
     }
 
     // Normalize to ensure sum equals 1
