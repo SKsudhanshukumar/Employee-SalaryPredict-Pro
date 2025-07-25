@@ -306,7 +306,7 @@ export class MLService {
   }
 
   private calculateCompanySizeImpact(size: string): number {
-    const smallCompanies = ['1-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'];
+    const smallCompanies = ['1-50', '51-500', '501-5000', '5000+'];
     return smallCompanies.includes(size) ? 0.2 : 0.1;
   }
 
@@ -365,7 +365,7 @@ export class MLService {
     }
 
     // Adjust based on company size
-    const smallCompanies = ['1-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'];
+    const smallCompanies = ['1-50', '51-500', '501-5000', '5000+'];
     if (smallCompanies.includes(input.companySize)) {
       importance.companySize += 0.10;
       importance.department -= 0.05;
