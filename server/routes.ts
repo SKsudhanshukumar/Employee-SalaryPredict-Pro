@@ -4,6 +4,7 @@ import multer from "multer";
 import { storage } from "./storage";
 import { MLService } from "./ml-service";
 import { PerformanceMonitor } from "./performance-monitor";
+import { DataProcessor } from "./data-processor";
 import { insertPredictionSchema, insertDataUploadSchema, insertEmployeeSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -312,6 +313,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch performance status" });
+    }
+  });
+
+  // Dynamic dropdown options endpoint
+  app.get("/api/dropdown-options", async (req, res) => {
+    try {
+      const cacheKey = "dropdown-options";
+      const cached = getCachedResponse(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
+      console.log('🔄 Fetching dynamic dropdown options from datasets...');
+      const uniqueValues = await DataProcessor.getUniqueValues();
+      
+      const options = {
+        jobTitles: uniqueValues.jobTitles,
+        departments: uniqueValues.departments,
+        locations: uniqueValues.locations,
+        educationLevels: uniqueValues.educationLevels,
+        companySizes: uniqueValues.companySizes,
+        lastUpdated: new Date().toISOString()
+      };
+
+      // Cache for 10 minutes since dataset values don't change frequently
+      setCachedResponse(cacheKey, options, 10 * 60 * 1000);
+      
+      console.log('✅ Dynamic dropdown options fetched successfully');
+      res.json(options);
+    } catch (error) {
+      console.error('Failed to fetch dropdown options:', error);
+      res.status(500).json({ message: "Failed to fetch dropdown options" });
     }
   });
   

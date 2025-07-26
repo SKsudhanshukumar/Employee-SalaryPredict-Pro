@@ -142,7 +142,9 @@ export class DataProcessor {
           employmentType: values[9],
           performanceRating: parseFloat(values[10]),
           certifications: parseInt(values[11]),
-          salary: parseFloat(values[12])
+          salary: parseFloat(values[12]),
+          companySize: this.generateCompanySize(values[7], parseFloat(values[12])), // Generate based on role and salary
+          jobTitle: values[7] // Map jobRole to jobTitle
         };
       } catch (error) {
         console.warn(`Skipping invalid record at line ${index + 2}:`, error);
@@ -184,6 +186,66 @@ export class DataProcessor {
 
     console.log(`Total loaded records: ${allRecords.length}`);
     return allRecords;
+  }
+
+  private static generateCompanySize(jobRole: string, salary: number): string {
+    // Generate realistic company sizes based on job role and salary
+    const seniorRoles = ['Tech Lead', 'Manager', 'Senior', 'Lead'];
+    const isSeniorRole = seniorRoles.some(role => jobRole.includes(role));
+    
+    if (salary > 1200000) {
+      // High salary suggests large company
+      return Math.random() > 0.3 ? 'Enterprise (5000+)' : 'Large (501-5000)';
+    } else if (salary > 800000) {
+      // Medium-high salary
+      if (isSeniorRole) {
+        return Math.random() > 0.4 ? 'Large (501-5000)' : 'Enterprise (5000+)';
+      } else {
+        return Math.random() > 0.5 ? 'Large (501-5000)' : 'Medium (51-500)';
+      }
+    } else if (salary > 500000) {
+      // Medium salary
+      return Math.random() > 0.6 ? 'Medium (51-500)' : 'Large (501-5000)';
+    } else {
+      // Lower salary suggests smaller company or startup
+      return Math.random() > 0.7 ? 'Startup (1-50)' : 'Medium (51-500)';
+    }
+  }
+
+  static async getUniqueValues(): Promise<{
+    jobTitles: string[];
+    departments: string[];
+    locations: string[];
+    educationLevels: string[];
+    companySizes: string[];
+  }> {
+    try {
+      const records = await this.loadDatasets();
+      
+      const jobTitles = Array.from(new Set(records.map(r => r.jobTitle))).filter(Boolean).sort();
+      const departments = Array.from(new Set(records.map(r => r.department))).filter(Boolean).sort();
+      const locations = Array.from(new Set(records.map(r => r.location))).filter(Boolean).sort();
+      const educationLevels = Array.from(new Set(records.map(r => r.educationLevel))).filter(Boolean).sort();
+      const companySizes = Array.from(new Set(records.map(r => r.companySize))).filter(Boolean).sort();
+
+      return {
+        jobTitles,
+        departments,
+        locations,
+        educationLevels,
+        companySizes
+      };
+    } catch (error) {
+      console.error('Failed to extract unique values:', error);
+      // Return fallback values if dataset loading fails
+      return {
+        jobTitles: ['Software Engineer', 'Data Scientist', 'Product Manager'],
+        departments: ['IT', 'Marketing', 'Sales', 'HR', 'Finance', 'Operations'],
+        locations: ['Bangalore', 'Delhi', 'Mumbai', 'Chennai', 'Pune', 'Hyderabad', 'Remote'],
+        educationLevels: ['Bachelor', 'Master', 'PhD', 'High School'],
+        companySizes: ['Startup (1-50)', 'Medium (51-500)', 'Large (501-5000)', 'Enterprise (5000+)']
+      };
+    }
   }
 
   static trainLinearRegression(features: number[][], targets: number[]): { weights: number[]; bias: number; r2Score: number; predictions: number[] } {

@@ -54,6 +54,7 @@ export default function DataUpload() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/data-uploads'] });
       queryClient.invalidateQueries({ queryKey: ['/api/analytics/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dropdown-options'] });
     },
     onError: (error: any) => {
       toast({

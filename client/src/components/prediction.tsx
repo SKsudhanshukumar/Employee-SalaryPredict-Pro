@@ -9,7 +9,6 @@ import { Progress } from "@/components/ui/progress";
 import { Calculator, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { jobTitleOptions, departmentOptions, locationOptions, educationOptions, companySizeOptions } from "@shared/schema";
 
 interface PredictionFormData {
   jobTitle: string;
@@ -34,6 +33,15 @@ interface PredictionWithFeatures {
     companySize: string;
   };
   featureImportance: Record<string, number>;
+}
+
+interface DropdownOptions {
+  jobTitles: string[];
+  departments: string[];
+  locations: string[];
+  educationLevels: string[];
+  companySizes: string[];
+  lastUpdated: string;
 }
 
 type DisplayMode = 'form' | 'results' | 'combined';
@@ -83,6 +91,30 @@ export default function Prediction({
     refetchOnMount: true,
     enabled: mode === 'results' || mode === 'combined',
     retry: 2,
+    retryDelay: 1000
+  });
+
+  // Fetch dynamic dropdown options
+  const { data: dropdownOptions, isLoading: optionsLoading } = useQuery<DropdownOptions>({
+    queryKey: ['/api/dropdown-options'],
+    queryFn: async () => {
+      console.log('🔄 Fetching dynamic dropdown options...');
+      const response = await apiRequest('GET', '/api/dropdown-options');
+      const data = await response.json();
+      console.log('✅ Dropdown options fetched:', {
+        jobTitles: data.jobTitles?.length || 0,
+        departments: data.departments?.length || 0,
+        locations: data.locations?.length || 0,
+        educationLevels: data.educationLevels?.length || 0,
+        companySizes: data.companySizes?.length || 0,
+        lastUpdated: data.lastUpdated
+      });
+      return data;
+    },
+    staleTime: 10 * 60 * 1000, // Consider data fresh for 10 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchOnWindowFocus: false,
+    retry: 3,
     retryDelay: 1000
   });
 
@@ -338,11 +370,15 @@ export default function Prediction({
                 <SelectValue placeholder="Select job title" />
               </SelectTrigger>
               <SelectContent>
-                {jobTitleOptions.map((title) => (
-                  <SelectItem key={title} value={title}>
-                    {title}
-                  </SelectItem>
-                ))}
+                {optionsLoading ? (
+                  <SelectItem value="loading" disabled>Loading...</SelectItem>
+                ) : (
+                  dropdownOptions?.jobTitles.map((title) => (
+                    <SelectItem key={title} value={title}>
+                      {title}
+                    </SelectItem>
+                  )) || []
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -372,11 +408,15 @@ export default function Prediction({
                 <SelectValue placeholder="Select department" />
               </SelectTrigger>
               <SelectContent>
-                {departmentOptions.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
-                  </SelectItem>
-                ))}
+                {optionsLoading ? (
+                  <SelectItem value="loading" disabled>Loading...</SelectItem>
+                ) : (
+                  dropdownOptions?.departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  )) || []
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -390,11 +430,15 @@ export default function Prediction({
                 <SelectValue placeholder="Select location" />
               </SelectTrigger>
               <SelectContent>
-                {locationOptions.map((loc) => (
-                  <SelectItem key={loc} value={loc}>
-                    {loc}
-                  </SelectItem>
-                ))}
+                {optionsLoading ? (
+                  <SelectItem value="loading" disabled>Loading...</SelectItem>
+                ) : (
+                  dropdownOptions?.locations.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {loc}
+                    </SelectItem>
+                  )) || []
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -408,11 +452,15 @@ export default function Prediction({
                 <SelectValue placeholder="Select education level" />
               </SelectTrigger>
               <SelectContent>
-                {educationOptions.map((edu) => (
-                  <SelectItem key={edu} value={edu}>
-                    {edu}
-                  </SelectItem>
-                ))}
+                {optionsLoading ? (
+                  <SelectItem value="loading" disabled>Loading...</SelectItem>
+                ) : (
+                  dropdownOptions?.educationLevels.map((edu) => (
+                    <SelectItem key={edu} value={edu}>
+                      {edu}
+                    </SelectItem>
+                  )) || []
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -426,11 +474,15 @@ export default function Prediction({
                 <SelectValue placeholder="Select company size" />
               </SelectTrigger>
               <SelectContent>
-                {companySizeOptions.map((size) => (
-                  <SelectItem key={size} value={size}>
-                    {size}
-                  </SelectItem>
-                ))}
+                {optionsLoading ? (
+                  <SelectItem value="loading" disabled>Loading...</SelectItem>
+                ) : (
+                  dropdownOptions?.companySizes.map((size) => (
+                    <SelectItem key={size} value={size}>
+                      {size}
+                    </SelectItem>
+                  )) || []
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -439,7 +491,7 @@ export default function Prediction({
             <Button 
               type="submit" 
               className="bg-primary text-white hover:bg-blue-700 px-8 py-3 transition-all duration-200 relative"
-              disabled={predictMutation.isPending || isDebouncing}
+              disabled={predictMutation.isPending || isDebouncing || optionsLoading}
             >
               {predictMutation.isPending ? (
                 <>
@@ -450,6 +502,11 @@ export default function Prediction({
                 <>
                   <RefreshCw className="w-4 h-4 mr-2 animate-pulse" />
                   Please Wait...
+                </>
+              ) : optionsLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Loading Options...
                 </>
               ) : (
                 <>
