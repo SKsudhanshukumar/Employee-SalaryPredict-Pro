@@ -296,7 +296,9 @@ export default function Prediction({
   }, []);
 
   const calculateRange = (prediction: number, confidence: number) => {
-    const margin = prediction * (1 - confidence / 100) * 0.5;
+    // Convert confidence to percentage if it's in decimal format (0-1)
+    const confidencePercent = confidence > 1 ? confidence : confidence * 100;
+    const margin = prediction * (1 - confidencePercent / 100) * 0.5;
     return {
       min: Math.round(prediction - margin),
       max: Math.round(prediction + margin),
@@ -605,9 +607,9 @@ export default function Prediction({
               <div className="mt-3">
                 <div className="flex justify-between text-sm text-blue-600 mb-1">
                   <span>Confidence</span>
-                  <span>{latestPrediction.prediction.confidence || 85}%</span>
+                  <span>{Math.round((latestPrediction.prediction.confidence || 0.85) * 100)}%</span>
                 </div>
-                <Progress value={latestPrediction.prediction.confidence || 85} className="h-2" />
+                <Progress value={(latestPrediction.prediction.confidence || 0.85) * 100} className="h-2" />
               </div>
             </div>
 
@@ -623,9 +625,9 @@ export default function Prediction({
               <div className="mt-3">
                 <div className="flex justify-between text-sm text-green-600 mb-1">
                   <span>Confidence</span>
-                  <span>{latestPrediction.prediction.confidence || 85}%</span>
+                  <span>{Math.round((latestPrediction.prediction.confidence || 0.85) * 100)}%</span>
                 </div>
-                <Progress value={latestPrediction.prediction.confidence || 85} className="h-2" />
+                <Progress value={(latestPrediction.prediction.confidence || 0.85) * 100} className="h-2" />
               </div>
             </div>
           </div>

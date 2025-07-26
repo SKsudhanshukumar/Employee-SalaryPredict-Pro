@@ -185,7 +185,7 @@ export default function ModelVisualization({
           <p className="font-medium text-gray-900 mb-2">Salary Range: {label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} style={{ color: entry.color }} className="text-sm">
-              {entry.dataKey}: ${Math.round(entry.value).toLocaleString()} MAE
+              {entry.dataKey}: ₹{Math.round(entry.value).toLocaleString()} MAE
             </p>
           ))}
           <p className="text-xs text-gray-500 mt-1">Lower values indicate better accuracy</p>

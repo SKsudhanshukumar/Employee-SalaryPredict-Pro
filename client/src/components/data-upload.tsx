@@ -22,7 +22,12 @@ export default function DataUpload() {
 
   const { data: uploads, isLoading } = useQuery<DataUpload[]>({
     queryKey: ["/api/data-uploads"],
-    refetchInterval: 3000, // Refresh every 3 seconds to update processing status
+    refetchInterval: (data) => {
+      // Only poll if there are uploads currently being processed
+      const hasProcessingUploads = Array.isArray(data) && data.some(upload => upload.status === 'processing');
+      return hasProcessingUploads ? 3000 : false;
+    },
+    refetchIntervalInBackground: false, // Don't poll when tab is not active
   });
 
   const uploadMutation = useMutation({
