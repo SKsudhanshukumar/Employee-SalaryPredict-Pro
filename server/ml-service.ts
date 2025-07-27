@@ -16,6 +16,12 @@ interface PredictionResult {
   randomForestPrediction: number;
   averagePrediction: number;
   confidence: number;
+  uncertaintyBounds: {
+    lowerBound: number;
+    upperBound: number;
+    range: number;
+    confidenceInterval: string;
+  };
   featureImportance: Record<string, number>;
   factors: {
     experienceImpact: number;
@@ -262,11 +268,20 @@ export class MLService {
         console.log(`⚡ Fast prediction completed in ${responseTime}ms`);
       }
 
+      // Calculate uncertainty bounds
+      const uncertaintyBounds = this.calculateUncertaintyBounds(
+        linearPrediction,
+        forestPrediction,
+        averagePrediction,
+        confidence
+      );
+
       return {
         linearRegressionPrediction: Math.round(linearPrediction),
         randomForestPrediction: Math.round(forestPrediction),
         averagePrediction: Math.round(averagePrediction),
         confidence,
+        uncertaintyBounds,
         featureImportance: this.calculateDynamicFeatureImportance(input, features),
         factors: {
           experienceImpact: input.experience * 0.15,
@@ -378,6 +393,56 @@ export class MLService {
     });
 
     return importance;
+  }
+
+  private calculateUncertaintyBounds(
+    linearPrediction: number, 
+    forestPrediction: number, 
+    averagePrediction: number, 
+    confidence: number
+  ): { lowerBound: number; upperBound: number; range: number; confidenceInterval: string } {
+    // Calculate prediction variance based on model disagreement
+    const modelVariance = Math.abs(linearPrediction - forestPrediction);
+    
+    // Base uncertainty from model performance (lower R² = higher uncertainty)
+    const linearR2 = this.modelMetrics.linearRegression?.r2Score || 0.7;
+    const forestR2 = this.modelMetrics.randomForest?.r2Score || 0.7;
+    
+    // Calculate uncertainty multiplier (higher for lower confidence)
+    const uncertaintyMultiplier = Math.max(0.1, 1 - confidence);
+    
+    // Base uncertainty percentage (10-25% based on model performance)
+    const baseUncertaintyPercent = 0.10 + (0.15 * uncertaintyMultiplier);
+    
+    // Additional uncertainty from model disagreement
+    const disagreementUncertainty = modelVariance * 0.3;
+    
+    // Calculate bounds
+    const totalUncertainty = (averagePrediction * baseUncertaintyPercent) + disagreementUncertainty;
+    const lowerBound = Math.max(30000, averagePrediction - totalUncertainty); // Minimum salary floor
+    const upperBound = Math.min(10000000, averagePrediction + totalUncertainty); // Maximum salary ceiling
+    const range = upperBound - lowerBound;
+    
+    // Determine confidence interval description
+    let confidenceInterval: string;
+    const confidencePercent = Math.round(confidence * 100);
+    
+    if (confidence >= 0.9) {
+      confidenceInterval = `${confidencePercent}% confidence - Very reliable prediction`;
+    } else if (confidence >= 0.8) {
+      confidenceInterval = `${confidencePercent}% confidence - Reliable prediction`;
+    } else if (confidence >= 0.7) {
+      confidenceInterval = `${confidencePercent}% confidence - Moderate confidence`;
+    } else {
+      confidenceInterval = `${confidencePercent}% confidence - Lower confidence, wider range`;
+    }
+    
+    return {
+      lowerBound: Math.round(lowerBound),
+      upperBound: Math.round(upperBound),
+      range: Math.round(range),
+      confidenceInterval
+    };
   }
 
   private calculateMAE(actual: number[], predicted: number[]): number {

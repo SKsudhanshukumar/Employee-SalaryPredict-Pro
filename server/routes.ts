@@ -127,7 +127,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...validatedData,
           linearRegressionPrediction: mlResult.linearRegressionPrediction,
           randomForestPrediction: mlResult.randomForestPrediction,
-          confidence: mlResult.confidence
+          averagePrediction: mlResult.averagePrediction,
+          confidence: mlResult.confidence,
+          uncertaintyBounds: mlResult.uncertaintyBounds
         },
         featureImportance: mlResult.featureImportance,
         responseTime: responseTime
@@ -168,17 +170,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const predictions = await storage.getPredictions(limit);
       
-      // Add feature importance to each prediction for frontend compatibility
-      const predictionsWithFeatures = predictions.map(prediction => ({
-        prediction,
-        featureImportance: {
-          experience: 0.35,
-          location: 0.25,
-          department: 0.20,
-          education: 0.12,
-          companySize: 0.08
+      // Add missing fields and feature importance to each prediction for frontend compatibility
+      const predictionsWithFeatures = predictions.map(prediction => {
+        // Calculate average prediction from the two model predictions
+        const averagePrediction = Math.round(
+          ((prediction.linearRegressionPrediction || 0) + (prediction.randomForestPrediction || 0)) / 2
+        );
+        
+        // Calculate uncertainty bounds if not present
+        const mlService = MLService.getInstance();
+        let uncertaintyBounds;
+        try {
+          // Use the same calculation logic as in the ML service
+          const linearPrediction = prediction.linearRegressionPrediction || 0;
+          const forestPrediction = prediction.randomForestPrediction || 0;
+          const modelVariance = Math.abs(linearPrediction - forestPrediction);
+          const confidence = prediction.confidence || 0.85;
+          const uncertaintyMultiplier = Math.max(0.1, 1 - confidence);
+          const baseUncertaintyPercent = 0.10 + (0.15 * uncertaintyMultiplier);
+          const disagreementUncertainty = modelVariance * 0.3;
+          const totalUncertainty = (averagePrediction * baseUncertaintyPercent) + disagreementUncertainty;
+          const lowerBound = Math.max(30000, averagePrediction - totalUncertainty);
+          const upperBound = Math.min(10000000, averagePrediction + totalUncertainty);
+          const range = upperBound - lowerBound;
+          
+          const confidencePercent = Math.round(confidence * 100);
+          let confidenceInterval: string;
+          if (confidence >= 0.9) {
+            confidenceInterval = `${confidencePercent}% confidence - Very reliable prediction`;
+          } else if (confidence >= 0.8) {
+            confidenceInterval = `${confidencePercent}% confidence - Reliable prediction`;
+          } else if (confidence >= 0.7) {
+            confidenceInterval = `${confidencePercent}% confidence - Moderate confidence`;
+          } else {
+            confidenceInterval = `${confidencePercent}% confidence - Lower confidence, wider range`;
+          }
+          
+          uncertaintyBounds = {
+            lowerBound: Math.round(lowerBound),
+            upperBound: Math.round(upperBound),
+            range: Math.round(range),
+            confidenceInterval
+          };
+        } catch (error) {
+          // Fallback uncertainty bounds
+          const margin = averagePrediction * 0.2;
+          uncertaintyBounds = {
+            lowerBound: Math.round(averagePrediction - margin),
+            upperBound: Math.round(averagePrediction + margin),
+            range: Math.round(margin * 2),
+            confidenceInterval: `${Math.round((prediction.confidence || 0.85) * 100)}% confidence`
+          };
         }
-      }));
+        
+        return {
+          prediction: {
+            ...prediction,
+            averagePrediction,
+            uncertaintyBounds
+          },
+          featureImportance: {
+            experience: 0.35,
+            location: 0.25,
+            department: 0.20,
+            educationLevel: 0.12,
+            companySize: 0.08
+          }
+        };
+      });
       
       res.json(predictionsWithFeatures);
     } catch (error) {

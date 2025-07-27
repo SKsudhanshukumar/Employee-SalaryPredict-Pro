@@ -24,7 +24,14 @@ interface PredictionWithFeatures {
     id: number;
     linearRegressionPrediction: number;
     randomForestPrediction: number;
+    averagePrediction: number;
     confidence: number;
+    uncertaintyBounds: {
+      lowerBound: number;
+      upperBound: number;
+      range: number;
+      confidenceInterval: string;
+    };
     jobTitle: string;
     experience: number;
     department: string;
@@ -152,8 +159,18 @@ export default function Prediction({
         console.log('✅ Prediction result:', result);
         
         // Validate the response structure
-        if (!result.prediction || typeof result.prediction.linearRegressionPrediction !== 'number') {
+        if (!result.prediction || 
+            typeof result.prediction.linearRegressionPrediction !== 'number' ||
+            typeof result.prediction.randomForestPrediction !== 'number' ||
+            typeof result.prediction.averagePrediction !== 'number' ||
+            !result.prediction.uncertaintyBounds) {
           console.error('❌ Invalid prediction response structure:', result);
+          console.error('Missing fields:', {
+            hasLinearPrediction: typeof result.prediction?.linearRegressionPrediction === 'number',
+            hasForestPrediction: typeof result.prediction?.randomForestPrediction === 'number',
+            hasAveragePrediction: typeof result.prediction?.averagePrediction === 'number',
+            hasUncertaintyBounds: !!result.prediction?.uncertaintyBounds
+          });
           throw new Error('Invalid prediction response from server');
         }
         
@@ -173,7 +190,7 @@ export default function Prediction({
       // Show toast notification
       toast({
         title: "Prediction Generated",
-        description: `Salary prediction: ${formatCurrency(data.prediction.linearRegressionPrediction)} (${responseTime}ms)`,
+        description: `Recommended salary: ${formatCurrency(data.prediction.averagePrediction)} (${responseTime}ms)`,
       });
       
       // Always update cache and trigger refetch for all modes
@@ -622,15 +639,6 @@ export default function Prediction({
         </Card>
       );
     }
-    
-    const lrRange = calculateRange(
-      latestPrediction.prediction.linearRegressionPrediction || 0, 
-      latestPrediction.prediction.confidence || 85
-    );
-    const rfRange = calculateRange(
-      latestPrediction.prediction.randomForestPrediction || 0, 
-      latestPrediction.prediction.confidence || 85
-    );
 
     return (
       <Card key={`prediction-${latestPrediction.prediction.id}`} data-prediction-results className={className}>
@@ -651,6 +659,36 @@ export default function Prediction({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Main Prediction - Average with Uncertainty Bounds */}
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-200 mb-6">
+            <h3 className="text-xl font-semibold text-purple-900 mb-2">Recommended Salary</h3>
+            <p className="text-4xl font-bold text-purple-700 mb-3">
+              {latestPrediction.prediction.averagePrediction ? 
+                formatCurrency(latestPrediction.prediction.averagePrediction) : 
+                'Calculating...'}
+            </p>
+            <div className="bg-white/60 rounded-lg p-4 mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-purple-700">Uncertainty Range</span>
+                <span className="text-sm text-purple-600">
+                  {latestPrediction.prediction.uncertaintyBounds?.confidenceInterval || 'Calculating...'}
+                </span>
+              </div>
+              <p className="text-lg font-semibold text-purple-800 mb-2">
+                {latestPrediction.prediction.uncertaintyBounds?.lowerBound && latestPrediction.prediction.uncertaintyBounds?.upperBound ? 
+                  `${formatCurrency(latestPrediction.prediction.uncertaintyBounds.lowerBound)} - ${formatCurrency(latestPrediction.prediction.uncertaintyBounds.upperBound)}` :
+                  'Calculating range...'}
+              </p>
+              <div className="flex justify-between text-sm text-purple-600">
+                <span>Range: {latestPrediction.prediction.uncertaintyBounds?.range ? 
+                  formatCurrency(latestPrediction.prediction.uncertaintyBounds.range) : 
+                  'Calculating...'}</span>
+                <span>Confidence: {Math.round((latestPrediction.prediction.confidence || 0.85) * 100)}%</span>
+              </div>
+              <Progress value={(latestPrediction.prediction.confidence || 0.85) * 100} className="h-2 mt-2" />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Linear Regression Prediction */}
             <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
@@ -659,14 +697,16 @@ export default function Prediction({
                 {formatCurrency(latestPrediction.prediction.linearRegressionPrediction || 0)}
               </p>
               <p className="text-sm text-blue-600">
-                Range: {formatCurrency(lrRange.min)} - {formatCurrency(lrRange.max)}
+                Individual model prediction
               </p>
               <div className="mt-3">
                 <div className="flex justify-between text-sm text-blue-600 mb-1">
-                  <span>Confidence</span>
-                  <span>{Math.round((latestPrediction.prediction.confidence || 0.85) * 100)}%</span>
+                  <span>Model Type</span>
+                  <span>Statistical</span>
                 </div>
-                <Progress value={(latestPrediction.prediction.confidence || 0.85) * 100} className="h-2" />
+                <div className="bg-blue-100 rounded p-2">
+                  <span className="text-xs text-blue-700">Fast, interpretable, good for linear relationships</span>
+                </div>
               </div>
             </div>
 
@@ -677,14 +717,16 @@ export default function Prediction({
                 {formatCurrency(latestPrediction.prediction.randomForestPrediction || 0)}
               </p>
               <p className="text-sm text-green-600">
-                Range: {formatCurrency(rfRange.min)} - {formatCurrency(rfRange.max)}
+                Individual model prediction
               </p>
               <div className="mt-3">
                 <div className="flex justify-between text-sm text-green-600 mb-1">
-                  <span>Confidence</span>
-                  <span>{Math.round((latestPrediction.prediction.confidence || 0.85) * 100)}%</span>
+                  <span>Model Type</span>
+                  <span>Ensemble</span>
                 </div>
-                <Progress value={(latestPrediction.prediction.confidence || 0.85) * 100} className="h-2" />
+                <div className="bg-green-100 rounded p-2">
+                  <span className="text-xs text-green-700">Robust, handles complex patterns, reduces overfitting</span>
+                </div>
               </div>
             </div>
           </div>
