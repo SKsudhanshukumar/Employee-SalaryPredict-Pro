@@ -106,12 +106,14 @@ export class MLService {
         linearRegression: {
           r2Score: linearResult.r2Score,
           meanAbsoluteError: this.calculateMAE(this.trainingData.targets, linearResult.predictions),
+          rootMeanSquareError: this.calculateRMSE(this.trainingData.targets, linearResult.predictions),
           trainingTime: endTime - startTime,
           sampleSize: this.trainingData.features.length
         },
         randomForest: {
           r2Score: forestResult.r2Score,
           meanAbsoluteError: this.calculateMAE(this.trainingData.targets, forestResult.predictions),
+          rootMeanSquareError: this.calculateRMSE(this.trainingData.targets, forestResult.predictions),
           trainingTime: endTime - startTime,
           sampleSize: this.trainingData.features.length,
           numTrees: 30
@@ -160,13 +162,15 @@ export class MLService {
           if (advancedForest.r2Score > this.randomForestModel.r2Score) {
             this.randomForestModel = advancedForest;
             this.modelMetrics.randomForest.r2Score = advancedForest.r2Score;
+            this.modelMetrics.randomForest.meanAbsoluteError = this.calculateMAE(this.trainingData.targets, advancedForest.predictions);
+            this.modelMetrics.randomForest.rootMeanSquareError = this.calculateRMSE(this.trainingData.targets, advancedForest.predictions);
             this.modelMetrics.randomForest.numTrees = advancedTrees;
           }
         }
       } catch (error) {
         console.error('⚠️ Background training failed:', error);
       }
-    }, 3000); // Start after 5 seconds
+    }, 3000); // Start after 3 seconds
   }
 
   private buildFeatureMappings(records: EmployeeRecord[]): void {
@@ -453,6 +457,14 @@ export class MLService {
     return sum / actual.length;
   }
 
+  private calculateRMSE(actual: number[], predicted: number[]): number {
+    let sum = 0;
+    for (let i = 0; i < actual.length; i++) {
+      sum += Math.pow(actual[i] - predicted[i], 2);
+    }
+    return Math.sqrt(sum / actual.length);
+  }
+
   getModelStatus() {
     return {
       isInitialized: this.isInitialized,
@@ -467,11 +479,7 @@ export class MLService {
     return this.modelMetrics;
   }
 
-  // async retrain(): Promise<void> {
-  //   console.log('🔄 Starting model retraining...');
-  //   this.isInitialized = false;
-  //   await this.initializeModels();
-  // }
+
   async retrain(): Promise<{ success: boolean; recordsProcessed: number }> {
   console.log('🔄 Starting model retraining...');
   this.isInitialized = false;

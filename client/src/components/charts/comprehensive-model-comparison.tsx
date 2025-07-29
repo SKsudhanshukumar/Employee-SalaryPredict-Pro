@@ -13,12 +13,17 @@ interface ModelMetrics {
     r2Score: number;
     meanAbsoluteError: number;
     rootMeanSquareError: number;
+    trainingTime?: number;
+    sampleSize?: number;
     oobScore?: number;
   };
   randomForest: {
     r2Score: number;
     meanAbsoluteError: number;
     rootMeanSquareError: number;
+    trainingTime?: number;
+    sampleSize?: number;
+    numTrees?: number;
     oobScore?: number;
   };
 }
@@ -27,6 +32,7 @@ export default function ComprehensiveModelComparison() {
   const [activeTab, setActiveTab] = useState("overview");
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [barSize, setBarSize] = useState<'small' | 'medium' | 'large'>('medium');
   
   const { data: metrics, isLoading, refetch } = useQuery<ModelMetrics>({
     queryKey: ["/api/model-metrics"],
@@ -66,6 +72,21 @@ export default function ComprehensiveModelComparison() {
     if (r2Score >= 0.6) return <Badge className="bg-orange-100 text-orange-800">Fair</Badge>;
     return <Badge className="bg-red-100 text-red-800">Needs Improvement</Badge>;
   };
+
+  const getBarConfig = (size: 'small' | 'medium' | 'large') => {
+    switch (size) {
+      case 'small':
+        return { width: 'w-6', barWidth: '24px', spacing: '12px' };
+      case 'medium':
+        return { width: 'w-10', barWidth: '40px', spacing: '20px' };
+      case 'large':
+        return { width: 'w-14', barWidth: '56px', spacing: '28px' };
+      default:
+        return { width: 'w-10', barWidth: '40px', spacing: '20px' };
+    }
+  };
+
+  const barConfig = getBarConfig(barSize);
 
   if (isLoading) {
     return (
@@ -265,13 +286,363 @@ export default function ComprehensiveModelComparison() {
             </TabsContent>
 
             <TabsContent value="metrics" className="mt-6">
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Model Metrics Configuration</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600">Advanced metrics configuration will be available here.</p>
+              <div className="space-y-6">
+                {/* Model Performance Metrics Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-gray-700" />
+                    <h3 className="text-lg font-semibold text-gray-900">Model Performance Metrics</h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span className="font-medium">
+                      {barSize.charAt(0).toUpperCase() + barSize.slice(1)} ({barConfig.barWidth} bars)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Size Selection Buttons */}
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setBarSize('small')}
+                    className={`px-3 py-1 text-sm border rounded transition-colors ${
+                      barSize === 'small' 
+                        ? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600' 
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Small
+                  </button>
+                  <button 
+                    onClick={() => setBarSize('medium')}
+                    className={`px-3 py-1 text-sm border rounded transition-colors ${
+                      barSize === 'medium' 
+                        ? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600' 
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Medium
+                  </button>
+                  <button 
+                    onClick={() => setBarSize('large')}
+                    className={`px-3 py-1 text-sm border rounded transition-colors ${
+                      barSize === 'large' 
+                        ? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600' 
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Large
+                  </button>
+                </div>
+
+                {/* Bar Configuration */}
+                <div className="flex items-center gap-6 text-sm text-gray-600">
+                  <span>Bar Width: {barConfig.barWidth}</span>
+                  <span>Spacing: {barConfig.spacing}</span>
+                </div>
+
+                {/* Performance Insights Banner */}
+                <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+                        <BarChart3 className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Model Performance Summary</h4>
+                        <p className="text-sm text-gray-600">Real-time accuracy and error metrics comparison</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="text-center">
+                        <div className="font-bold text-blue-600">
+                          {((metrics?.linearRegression?.r2Score || 0) * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-500">Linear R²</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-bold text-green-600">
+                          {((metrics?.randomForest?.r2Score || 0) * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-500">Forest R²</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Charts Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Model Accuracy Chart */}
+                  <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
+                    <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-transparent">
+                      <CardTitle className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                        Model Accuracy (R² Score)
+                      </CardTitle>
+                      <p className="text-xs text-gray-600 mt-1">Higher values indicate better model performance</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-64 flex items-end justify-center gap-8 px-4">
+                        {/* Y-axis labels */}
+                        <div className="flex flex-col justify-between h-full text-xs text-gray-500 mr-4">
+                          <span>100%</span>
+                          <span>75%</span>
+                          <span>50%</span>
+                          <span>25%</span>
+                          <span>0%</span>
+                        </div>
+                        
+                        {/* Bars Container - Simplified Structure */}
+                        <div className="relative w-full" style={{ height: '240px' }}>
+                          {/* Grid lines */}
+                          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                          </div>
+                          
+                          {/* Chart Area */}
+                          <div className="h-full flex items-end justify-center gap-8 px-4">
+                            {/* Linear Regression Bar */}
+                            <div className="flex flex-col items-center group relative">
+                              {/* Tooltip - positioned absolutely above chart */}
+                              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20">
+                                {((metrics?.linearRegression?.r2Score || 0) * 100).toFixed(1)}%
+                              </div>
+                              
+                              {/* Bar */}
+                              <div 
+                                className={`${barConfig.width} bg-gradient-to-t from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 rounded-t transition-colors duration-300 cursor-pointer`}
+                                style={{ 
+                                  height: `${Math.max(20, ((metrics?.linearRegression?.r2Score || 0) * 240))}px`,
+                                  marginBottom: '0px'
+                                }}
+                                title={`Linear Regression R²: ${((metrics?.linearRegression?.r2Score || 0) * 100).toFixed(1)}%`}
+                              />
+                            </div>
+                            
+                            {/* Random Forest Bar */}
+                            <div className="flex flex-col items-center group relative">
+                              {/* Tooltip - positioned absolutely above chart */}
+                              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20">
+                                {((metrics?.randomForest?.r2Score || 0) * 100).toFixed(1)}%
+                              </div>
+                              
+                              {/* Bar */}
+                              <div 
+                                className={`${barConfig.width} bg-gradient-to-t from-green-600 to-green-400 hover:from-green-700 hover:to-green-500 rounded-t transition-colors duration-300 cursor-pointer`}
+                                style={{ 
+                                  height: `${Math.max(20, ((metrics?.randomForest?.r2Score || 0) * 240))}px`,
+                                  marginBottom: '0px'
+                                }}
+                                title={`Random Forest R²: ${((metrics?.randomForest?.r2Score || 0) * 100).toFixed(1)}%`}
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Labels below chart */}
+                          <div className="flex justify-center gap-8 mt-2">
+                            <div className="text-xs text-gray-600 text-center font-medium group-hover:text-blue-600 transition-colors">
+                              Linear Regression
+                            </div>
+                            <div className="text-xs text-gray-600 text-center font-medium group-hover:text-green-600 transition-colors">
+                              Random Forest
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Error Metrics Chart */}
+                  <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-orange-500">
+                    <CardHeader className="pb-4 bg-gradient-to-r from-orange-50 to-transparent">
+                      <CardTitle className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                        <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                        Error Metrics (Lower is Better)
+                      </CardTitle>
+                      <p className="text-xs text-gray-600 mt-1">Lower error values indicate more accurate predictions</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-64 flex items-end justify-center gap-8 px-4">
+                        {/* Y-axis labels */}
+                        <div className="flex flex-col justify-between h-full text-xs text-gray-500 mr-4">
+                          <span>$80k</span>
+                          <span>$60k</span>
+                          <span>$40k</span>
+                          <span>$20k</span>
+                          <span>$0k</span>
+                        </div>
+                        
+                        {/* Bars Container - Simplified Structure */}
+                        <div className="relative w-full" style={{ height: '240px' }}>
+                          {/* Grid lines */}
+                          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                            <div className="border-t border-gray-200 w-full"></div>
+                          </div>
+                          
+                          {/* Chart Area */}
+                          <div className="h-full flex items-end justify-center gap-12 px-4">
+                            {/* MAE Section */}
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-end gap-2">
+                                {/* Linear Regression MAE */}
+                                <div className="flex flex-col items-center group relative">
+                                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-800 text-white text-xs px-1 py-0.5 rounded whitespace-nowrap z-20">
+                                    ${Math.round(metrics?.linearRegression?.meanAbsoluteError || 0).toLocaleString()}
+                                  </div>
+                                  <div 
+                                    className={`${barSize === 'small' ? 'w-5' : barSize === 'medium' ? 'w-8' : 'w-10'} bg-gradient-to-t from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 rounded-t transition-colors duration-300 cursor-pointer`}
+                                    style={{ 
+                                      height: `${Math.max(15, ((metrics?.linearRegression?.meanAbsoluteError || 0) / 80000) * 240)}px`,
+                                      marginBottom: '0px'
+                                    }}
+                                    title={`Linear Regression MAE: $${Math.round(metrics?.linearRegression?.meanAbsoluteError || 0).toLocaleString()}`}
+                                  />
+                                </div>
+                                
+                                {/* Random Forest MAE */}
+                                <div className="flex flex-col items-center group relative">
+                                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-800 text-white text-xs px-1 py-0.5 rounded whitespace-nowrap z-20">
+                                    ${Math.round(metrics?.randomForest?.meanAbsoluteError || 0).toLocaleString()}
+                                  </div>
+                                  <div 
+                                    className={`${barSize === 'small' ? 'w-5' : barSize === 'medium' ? 'w-8' : 'w-10'} bg-gradient-to-t from-green-600 to-green-400 hover:from-green-700 hover:to-green-500 rounded-t transition-colors duration-300 cursor-pointer`}
+                                    style={{ 
+                                      height: `${Math.max(15, ((metrics?.randomForest?.meanAbsoluteError || 0) / 80000) * 240)}px`,
+                                      marginBottom: '0px'
+                                    }}
+                                    title={`Random Forest MAE: $${Math.round(metrics?.randomForest?.meanAbsoluteError || 0).toLocaleString()}`}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* RMSE Section */}
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-end gap-2">
+                                {/* Linear Regression RMSE */}
+                                <div className="flex flex-col items-center group relative">
+                                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-800 text-white text-xs px-1 py-0.5 rounded whitespace-nowrap z-20">
+                                    ${Math.round(metrics?.linearRegression?.rootMeanSquareError || 0).toLocaleString()}
+                                  </div>
+                                  <div 
+                                    className={`${barSize === 'small' ? 'w-5' : barSize === 'medium' ? 'w-8' : 'w-10'} bg-gradient-to-t from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 rounded-t transition-colors duration-300 cursor-pointer`}
+                                    style={{ 
+                                      height: `${Math.max(15, ((metrics?.linearRegression?.rootMeanSquareError || 0) / 80000) * 240)}px`,
+                                      marginBottom: '0px'
+                                    }}
+                                    title={`Linear Regression RMSE: $${Math.round(metrics?.linearRegression?.rootMeanSquareError || 0).toLocaleString()}`}
+                                  />
+                                </div>
+                                
+                                {/* Random Forest RMSE */}
+                                <div className="flex flex-col items-center group relative">
+                                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-800 text-white text-xs px-1 py-0.5 rounded whitespace-nowrap z-20">
+                                    ${Math.round(metrics?.randomForest?.rootMeanSquareError || 0).toLocaleString()}
+                                  </div>
+                                  <div 
+                                    className={`${barSize === 'small' ? 'w-5' : barSize === 'medium' ? 'w-8' : 'w-10'} bg-gradient-to-t from-green-600 to-green-400 hover:from-green-700 hover:to-green-500 rounded-t transition-colors duration-300 cursor-pointer`}
+                                    style={{ 
+                                      height: `${Math.max(15, ((metrics?.randomForest?.rootMeanSquareError || 0) / 80000) * 240)}px`,
+                                      marginBottom: '0px'
+                                    }}
+                                    title={`Random Forest RMSE: $${Math.round(metrics?.randomForest?.rootMeanSquareError || 0).toLocaleString()}`}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Labels below chart */}
+                          <div className="flex justify-center gap-12 mt-2">
+                            <div className="text-xs text-gray-600 text-center font-medium">MAE</div>
+                            <div className="text-xs text-gray-600 text-center font-medium">RMSE</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-6 pt-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                    <span className="text-sm text-gray-600">Linear Regression</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-500 rounded"></div>
+                    <span className="text-sm text-gray-600">Random Forest</span>
+                  </div>
+                </div>
+
+                {/* Enhanced Performance Summary */}
+                <Card className="bg-gradient-to-r from-gray-50 to-blue-50 border-2 border-blue-100 hover:shadow-lg transition-all duration-300">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-blue-600" />
+                        Performance Summary
+                      </h4>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span>Live Metrics</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 border border-blue-100">
+                        <div className="text-2xl font-bold text-blue-600 mb-1">
+                          {((metrics?.linearRegression?.r2Score || 0) * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">Linear R²</div>
+                        <div className="text-xs text-gray-500 mt-1">Accuracy Score</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 border border-green-100">
+                        <div className="text-2xl font-bold text-green-600 mb-1">
+                          {((metrics?.randomForest?.r2Score || 0) * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">Forest R²</div>
+                        <div className="text-xs text-gray-500 mt-1">Accuracy Score</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 border border-blue-100">
+                        <div className="text-lg font-bold text-blue-600 mb-1">
+                          ${Math.round(metrics?.linearRegression?.meanAbsoluteError || 0).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">Linear MAE</div>
+                        <div className="text-xs text-gray-500 mt-1">Mean Abs Error</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 border border-green-100">
+                        <div className="text-lg font-bold text-green-600 mb-1">
+                          ${Math.round(metrics?.randomForest?.meanAbsoluteError || 0).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">Forest MAE</div>
+                        <div className="text-xs text-gray-500 mt-1">Mean Abs Error</div>
+                      </div>
+                    </div>
+                    
+                    {/* Model Comparison Insight */}
+                    <div className="mt-4 p-3 bg-white/70 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                        <span className="font-medium text-gray-700">
+                          {((metrics?.randomForest?.r2Score || 0) > (metrics?.linearRegression?.r2Score || 0)) 
+                            ? "Random Forest outperforms Linear Regression" 
+                            : "Linear Regression performs competitively"}
+                        </span>
+                        <span className="text-gray-500">
+                          ({Math.abs(((metrics?.randomForest?.r2Score || 0) - (metrics?.linearRegression?.r2Score || 0)) * 100).toFixed(1)}% difference)
+                        </span>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

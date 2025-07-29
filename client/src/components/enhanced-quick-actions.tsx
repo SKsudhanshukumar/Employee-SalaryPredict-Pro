@@ -255,7 +255,7 @@ export default function EnhancedQuickActions({ activeSection, onNavigate }: Enha
             <div className="flex items-center justify-between pt-2 border-t border-gray-200">
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <RefreshCw className="w-3 h-3" />
-                Auto-updates every 30s
+                Auto-updates every 2 minutes
               </div>
               <Button 
                 size="sm" 
