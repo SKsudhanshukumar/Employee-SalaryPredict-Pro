@@ -10,6 +10,13 @@ A sophisticated full-stack web application for employee salary prediction powere
 - **🔍 Predictive Analytics**: Accurate salary predictions with confidence scores
 - **📋 Feature Analysis**: Detailed insights into salary-determining factors
 - **🎨 Modern UI**: Built with React, TypeScript, and Tailwind CSS
+- **⚡ Progressive Loading**: Smart loading system with step-by-step initialization
+- **⌨️ Keyboard Shortcuts**: Quick navigation with Ctrl+Key combinations
+- **🔄 Real-time Updates**: Auto-refreshing model metrics and performance data
+- **📤 File Upload**: Drag-and-drop CSV file upload with processing status
+- **🎯 Quick Actions**: Enhanced navigation panel with live model status
+- **📈 Performance Monitoring**: Built-in performance tracking and optimization
+- **🔧 Code Splitting**: Optimized bundle loading with lazy components
 
 ## 🚀 Quick Start
 
@@ -59,6 +66,12 @@ SalaryPredictorPro/
 ├── client/                    # React frontend application
 │   ├── src/
 │   │   ├── components/       # Reusable UI components
+│   │   │   ├── ui/          # Shadcn/ui component library
+│   │   │   ├── charts/      # Data visualization components
+│   │   │   ├── data-upload.tsx # File upload with drag-and-drop
+│   │   │   ├── enhanced-quick-actions.tsx # Navigation panel
+│   │   │   ├── progressive-loader.tsx # Smart loading system
+│   │   │   └── prediction.tsx # Salary prediction interface
 │   │   ├── pages/           # Application pages
 │   │   ├── hooks/           # Custom React hooks
 │   │   └── lib/             # Utilities and configurations
@@ -67,10 +80,18 @@ SalaryPredictorPro/
 │   ├── routes.ts            # API route definitions
 │   ├── ml-service.ts        # Machine learning service
 │   ├── data-processor.ts    # Data processing utilities
+│   ├── performance-monitor.ts # Performance tracking system
+│   ├── storage.ts           # Database abstraction layer
+│   ├── vite.ts              # Vite integration for development
 │   └── *.csv                # Training datasets
 ├── shared/                  # Shared TypeScript types
+│   └── schema.ts           # Database schema and validation
 ├── setup.bat               # Windows setup script
 ├── setup.sh                # Unix/Linux setup script
+├── vite.config.ts          # Vite build configuration
+├── drizzle.config.ts       # Database ORM configuration
+├── tailwind.config.ts      # Tailwind CSS configuration
+├── components.json         # Shadcn/ui component configuration
 ├── package.json            # Dependencies and scripts
 └── README.md               # This documentation
 ```
@@ -98,6 +119,27 @@ SalaryPredictorPro/
 - `npm start` - Start production server
 - `npm run check` - TypeScript type checking
 - `npm run db:push` - Push database schema changes (if using PostgreSQL)
+
+## 🔌 API Endpoints
+
+### Core ML Endpoints
+- `GET /api/model-metrics` - Get current model performance metrics (R², MAE, RMSE)
+- `POST /api/predict` - Make salary predictions with input validation
+- `GET /api/model-status` - Check model training status and initialization
+
+### Data Management
+- `POST /api/upload-data` - Upload CSV files for model training (max 10MB)
+- `GET /api/data-uploads` - List uploaded datasets with processing status
+- `DELETE /api/data-uploads/:id` - Remove uploaded dataset
+
+### Analytics & Insights
+- `GET /api/analytics/salary-distribution` - Salary distribution statistics
+- `GET /api/analytics/department-comparison` - Department-wise salary analysis
+- `GET /api/analytics/feature-importance` - Model feature importance scores
+
+### Performance & Monitoring
+- `GET /api/performance-metrics` - System performance statistics
+- `GET /api/health` - Application health check endpoint
 
 ## 🗄️ Database Configuration
 
@@ -132,32 +174,82 @@ For persistent data storage and enhanced performance:
    npm run dev
    ```
 
+## 📊 Data Format Requirements
+
+### CSV File Structure
+For optimal model training, your CSV files should contain the following columns:
+
+```csv
+salary,experience,department,location,education_level,company_size,job_title
+75000,3,Engineering,San Francisco,Bachelor's,Medium,Software Engineer
+95000,5,Engineering,New York,Master's,Large,Senior Developer
+65000,2,Marketing,Austin,Bachelor's,Small,Marketing Specialist
+```
+
+### Required Columns
+- **salary** (number): Annual salary in USD
+- **experience** (number): Years of professional experience
+- **department** (string): Employee department (Engineering, Sales, Marketing, HR, Finance, etc.)
+- **location** (string): Work location/city
+- **education_level** (string): Highest education (High School, Bachelor's, Master's, PhD)
+- **company_size** (string): Organization size (Startup, Small, Medium, Large, Enterprise)
+
+### Optional Columns
+- **job_title** (string): Specific job title (for future enhancements)
+
+### Data Quality Guidelines
+- Remove rows with missing salary values
+- Ensure experience values are non-negative
+- Use consistent naming for departments and locations
+- Salary values should be realistic (typically 20,000 - 500,000)
+- File size should not exceed 10MB per upload
+
 ## 📈 Using the Application
 
 ### 1. Dashboard Overview
 - **Real-time Statistics**: Live metrics from trained ML models
-- **Model Performance**: R² scores, MAE, and RMSE metrics
+- **Model Performance**: R² scores, MAE, and RMSE metrics with auto-refresh
 - **Data Visualizations**: Interactive charts showing salary distributions
 - **Training Status**: Monitor model training progress and dataset processing
+- **Progressive Loading**: Smart initialization with step-by-step progress indicators
 
-### 2. Salary Prediction Engine
+### 2. Enhanced Navigation System
+- **Quick Actions Panel**: Sticky navigation with keyboard shortcuts
+- **Live Model Status**: Real-time R² scores and performance indicators
+- **Keyboard Shortcuts**: Use `Ctrl+D` (Dashboard), `Ctrl+P` (Prediction), `Ctrl+A` (Analytics), `Ctrl+M` (Models), `Ctrl+U` (Upload)
+- **Active Section Tracking**: Visual indicators showing current location
+- **Auto-updating Metrics**: Performance data refreshes every 2 minutes
+
+### 3. Salary Prediction Engine
 - **Multi-Model Predictions**: Get estimates from both Linear Regression and Random Forest
-- **Confidence Scoring**: Understand prediction reliability
+- **Confidence Scoring**: Understand prediction reliability with uncertainty bounds
 - **Feature Impact Analysis**: See how each factor influences the prediction
 - **Real-time Results**: Instant predictions with detailed breakdowns
+- **Interactive Forms**: User-friendly input with validation and suggestions
 
-### 3. Data Processing Pipeline
-- **Multi-Dataset Support**: Automatically processes multiple CSV files
-- **Intelligent Feature Encoding**: Handles categorical variables (departments, locations, education)
-- **Data Validation**: Ensures data quality and consistency
-- **Training Data Management**: Efficient handling of large employee datasets
+### 4. Data Upload & Management
+- **Drag-and-Drop Interface**: Easy CSV file upload with visual feedback
+- **Processing Status**: Real-time upload progress and validation
+- **File Management**: View uploaded datasets with record counts and status
+- **Automatic Processing**: Background model retraining with new data
+- **Error Handling**: Detailed feedback for file format issues
 
-### 4. Advanced Analytics
+### 5. Advanced Analytics & Visualizations
+- **Comprehensive Model Comparison**: Side-by-side performance metrics
+- **Interactive Charts**: Multiple visualization types (bar, line, pie, radar)
 - **Department Analysis**: Salary comparisons across different departments
 - **Experience Correlation**: Years of experience vs salary relationship analysis
 - **Location Impact**: Geographic salary variations
 - **Education Premium**: Impact of education level on compensation
 - **Company Size Effects**: How organization size affects salaries
+- **Feature Importance**: Visual representation of model decision factors
+
+### 6. Performance Monitoring
+- **Built-in Metrics**: Automatic performance tracking and reporting
+- **Memory Usage**: Monitor application resource consumption
+- **Response Times**: Track API performance and optimization opportunities
+- **Model Training Times**: Benchmark ML algorithm performance
+- **Cache Management**: Intelligent caching for improved response times
 
 ## 🤖 Machine Learning Implementation
 
@@ -189,16 +281,21 @@ For persistent data storage and enhanced performance:
 ### Backend Architecture
 - **Express.js**: Fast, minimalist web framework
 - **TypeScript**: Type-safe server-side development
-- **Drizzle ORM**: Type-safe database operations
-- **Multer**: File upload handling for CSV processing
-- **Express Session**: Session management
-- **WebSocket**: Real-time communication capabilities
+- **Drizzle ORM**: Type-safe database operations with PostgreSQL support
+- **Multer**: File upload handling for CSV processing (10MB limit)
+- **Express Session**: Session management with memory store
+- **Performance Monitoring**: Built-in metrics collection and reporting
+- **Caching System**: In-memory response caching with TTL
+- **Background Processing**: Non-blocking ML model initialization
 
 ### Development Tools
-- **Vite**: Lightning-fast build tool and dev server
+- **Vite**: Lightning-fast build tool and dev server with HMR
 - **ESBuild**: Ultra-fast JavaScript bundler
 - **TSX**: TypeScript execution environment
 - **Cross-env**: Cross-platform environment variables
+- **Code Splitting**: Automatic bundle optimization with manual chunks
+- **Lazy Loading**: Dynamic imports for improved initial load performance
+- **Runtime Error Overlay**: Development error handling with Replit integration
 
 ## 🚨 Troubleshooting
 
@@ -242,9 +339,30 @@ node --version
 
 ### Model Training Issues
 - Ensure CSV files are present in `/server/` directory
-- Check file permissions and format
+- Check file permissions and format (CSV with headers required)
 - Monitor console for training progress logs
-- Verify sufficient memory for large datasets
+- Verify sufficient memory for large datasets (>100MB files may require more RAM)
+- Check for proper column names: `salary`, `experience`, `department`, `location`, `education_level`, `company_size`
+
+### File Upload Problems
+- Maximum file size is 10MB per upload
+- Only CSV files are supported
+- Ensure proper CSV format with comma separators
+- Check that file contains required columns
+- Monitor upload progress in the data upload section
+
+### Performance Issues
+- Clear browser cache if UI becomes unresponsive
+- Check network tab for failed API requests
+- Monitor memory usage in browser dev tools
+- Disable browser extensions that might interfere
+- Use Chrome/Firefox for best performance
+
+### Keyboard Shortcuts Not Working
+- Ensure no other applications are capturing the key combinations
+- Try using `Cmd` instead of `Ctrl` on macOS
+- Check that focus is on the main application window
+- Refresh the page if shortcuts stop responding
 
 ## 📞 Support & Debugging
 
@@ -254,6 +372,11 @@ node --version
 3. **"Models not training"**: Check CSV file format and server console logs
 4. **"Database errors"**: Verify PostgreSQL setup or use in-memory mode
 5. **"Build failures"**: Ensure Node.js 18+ and clear npm cache
+6. **"Progressive loader stuck"**: Refresh page or check network connectivity
+7. **"File upload failing"**: Verify file size (<10MB) and CSV format
+8. **"Keyboard shortcuts not working"**: Check browser focus and try refreshing
+9. **"Charts not loading"**: Ensure JavaScript is enabled and try different browser
+10. **"Performance degradation"**: Clear cache, close other tabs, check available RAM
 
 ### Debug Mode
 ```bash
@@ -266,11 +389,21 @@ DEBUG=ml-service,data-processor npm run dev
 
 ## 🎯 Development Roadmap
 
+### Recently Completed ✅
+- [x] Progressive loading system with step-by-step initialization
+- [x] Enhanced quick actions panel with keyboard shortcuts
+- [x] Real-time model metrics with auto-refresh
+- [x] Drag-and-drop file upload with processing status
+- [x] Performance monitoring and caching system
+- [x] Code splitting and lazy loading optimization
+- [x] Comprehensive model comparison dashboard
+
 ### Immediate Enhancements
 - [ ] Real-time model retraining with new data uploads
 - [ ] Advanced feature selection algorithms
-- [ ] Model performance comparison dashboard
 - [ ] Export predictions to CSV/Excel
+- [ ] WebSocket integration for live updates
+- [ ] Advanced error boundary with recovery options
 
 ### Future Features
 - [ ] Integration with external salary APIs (Glassdoor, PayScale)
@@ -278,12 +411,17 @@ DEBUG=ml-service,data-processor npm run dev
 - [ ] Multi-tenant support for different organizations
 - [ ] Mobile-responsive design improvements
 - [ ] API documentation with Swagger/OpenAPI
+- [ ] User authentication and role-based access
+- [ ] Data visualization customization options
+- [ ] Automated model A/B testing
 
 ### Performance Optimizations
-- [ ] Model caching and persistence
-- [ ] Database query optimization
-- [ ] Frontend code splitting
+- [ ] Model caching and persistence to disk
+- [ ] Database query optimization with indexing
+- [ ] Service worker for offline functionality
 - [ ] CDN integration for static assets
+- [ ] Memory usage optimization for large datasets
+- [ ] Background job processing for heavy computations
 
 ---
 
