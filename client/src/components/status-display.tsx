@@ -55,9 +55,9 @@ export default function StatusDisplay({
   // Fetch model metrics with auto-refresh
   const { data: metrics, isLoading: metricsLoading } = useQuery<ModelMetrics>({
     queryKey: ["/api/model-metrics"],
-    refetchInterval: 2 * 60 * 1000, // Auto-refresh every 2 minutes
+    refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
     refetchIntervalInBackground: false,
-    staleTime: 60 * 1000, // Consider data fresh for 1 minute
+    staleTime: 15 * 1000, // Consider data fresh for 15 seconds
   });
 
   // Fetch model status
@@ -74,8 +74,8 @@ export default function StatusDisplay({
       };
 
       fetchStatus();
-      // Refresh status every 2 minutes
-      const interval = setInterval(fetchStatus, 2 * 60 * 1000);
+      // Refresh status every 30 seconds
+      const interval = setInterval(fetchStatus, 30 * 1000);
       return () => clearInterval(interval);
     }
   }, [type, showModelMetrics]);
@@ -166,7 +166,7 @@ export default function StatusDisplay({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Model Accuracy</p>
+                <p className="text-sm font-medium text-gray-600">Avg. Model Accuracy</p>
                 <p className="text-2xl font-inter font-bold text-gray-900">
                   {stats ? `${stats.modelAccuracy}%` : '0%'}
                 </p>
@@ -237,7 +237,7 @@ export default function StatusDisplay({
             {modelStatus.message}
             {metrics && (
               <span className="ml-2 text-green-600 dark:text-green-400">
-                • R² scores auto-update every 2 minutes
+                • R² scores auto-update every 30 seconds
               </span>
             )}
           </p>
